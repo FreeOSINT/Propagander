@@ -1,0 +1,1458 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Phi-3 News Research & Analysis Tool</title>
+    <script type="module">
+        // Import WebLLM from npm CDN
+        import * as webllm from "https://esm.run/@mlc-ai/web-llm";
+        window.webllm = webllm;
+    </script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 30px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .header h1 {
+            color: white;
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+        }
+
+        .header p {
+            color: rgba(255, 255, 255, 0.9);
+            font-size: 1.1em;
+        }
+
+        .search-section {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 15px;
+            padding: 25px;
+            margin-bottom: 25px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+        }
+
+        .search-container {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 20px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .source-selector {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 15px;
+            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+            border-radius: 10px;
+            border: 2px solid #dee2e6;
+            transition: all 0.3s ease;
+        }
+
+        .source-selector:hover {
+            border-color: #667eea;
+            box-shadow: 0 2px 8px rgba(102, 126, 234, 0.2);
+        }
+
+        .source-selector label {
+            font-weight: bold;
+            color: #495057;
+            font-size: 14px;
+            white-space: nowrap;
+        }
+
+        .source-selector select {
+            padding: 8px 12px;
+            border: 2px solid #ced4da;
+            border-radius: 8px;
+            font-size: 14px;
+            background: white;
+            color: #495057;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            min-width: 160px;
+        }
+
+        .source-selector select:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .source-selector select:hover {
+            border-color: #667eea;
+        }
+
+        #searchInput {
+            flex: 1;
+            padding: 15px;
+            border: 2px solid #ddd;
+            border-radius: 10px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+        }
+
+        #searchInput:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .btn {
+            padding: 15px 25px;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: bold;
+            transition: all 0.3s;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-secondary {
+            background: linear-gradient(45deg, #f093fb, #f5576c);
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(245, 87, 108, 0.4);
+        }
+
+        .status {
+            margin-top: 15px;
+            padding: 10px;
+            border-radius: 8px;
+            font-weight: bold;
+        }
+
+        .status.loading {
+            background-color: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeaa7;
+        }
+
+        .status.success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .status.error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .results-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 25px;
+            margin-top: 25px;
+        }
+
+        .results-section {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+        }
+
+        .results-section h3 {
+            color: #333;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 3px solid #667eea;
+            font-size: 1.3em;
+        }
+
+        .search-result {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 15px;
+            border-left: 4px solid #667eea;
+            transition: transform 0.2s;
+        }
+
+        .search-result:hover {
+            transform: translateX(5px);
+        }
+
+        .search-result h4 {
+            color: #333;
+            margin-bottom: 8px;
+            font-size: 1.1em;
+        }
+
+        .search-result p {
+            color: #666;
+            line-height: 1.5;
+            margin-bottom: 8px;
+        }
+
+        .search-result a {
+            color: #667eea;
+            text-decoration: none;
+            font-weight: bold;
+        }
+
+        .search-result a:hover {
+            text-decoration: underline;
+        }
+
+        .analysis-item {
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 15px;
+            border-left: 4px solid #764ba2;
+        }
+
+        .analysis-item h4 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 1.1em;
+        }
+
+        .analysis-item .category {
+            display: inline-block;
+            background: #667eea;
+            color: white;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.8em;
+            margin-right: 5px;
+            margin-bottom: 5px;
+        }
+
+        .bias-indicator {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.8em;
+            font-weight: bold;
+            margin-right: 5px;
+        }
+
+        .bias-left { background: #3498db; color: white; }
+        .bias-center { background: #95a5a6; color: white; }
+        .bias-right { background: #e74c3c; color: white; }
+        .bias-unknown { background: #f39c12; color: white; }
+
+        .tone-indicator {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.8em;
+            font-weight: bold;
+            margin-right: 5px;
+        }
+
+        .tone-positive { background: #27ae60; color: white; }
+        .tone-negative { background: #e74c3c; color: white; }
+        .tone-neutral { background: #95a5a6; color: white; }
+
+        .loading-spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 6px;
+            background-color: #e0e0e0;
+            border-radius: 3px;
+            overflow: hidden;
+            margin: 10px 0;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+
+        @media (max-width: 768px) {
+            .results-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .search-container {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            
+            .source-selector {
+                justify-content: center;
+                order: -1;
+                margin-bottom: 10px;
+            }
+            
+            .source-selector select {
+                min-width: 140px;
+            }
+            
+            #searchInput {
+                order: 1;
+            }
+            
+            .btn {
+                order: 2;
+                margin-top: 5px;
+            }
+            
+            .header h1 {
+                font-size: 2em;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔍 Phi-3 News Research & Analysis Tool</h1>
+            <p>Search news topics and get AI-powered analysis of dates, names, political biases, and tones</p>
+        </div>
+
+        <div class="search-section">
+            <div class="search-container">
+                <input type="text" id="searchInput" placeholder="Enter a news topic to research (e.g., 'climate change policy', 'election results', 'economic trends')">
+                <div class="source-selector" title="Choose how many news sources to analyze. More sources = better analysis but longer processing time.">
+                    <label for="sourceCount" style="font-weight: bold; color: #333; margin-right: 8px;">Sources:</label>
+                    <select id="sourceCount" style="padding: 8px; border: 2px solid #ddd; border-radius: 8px; font-size: 14px; background: white;" title="Select number of sources to analyze">
+                        <option value="3">3 Sources (Fast ~1 min)</option>
+                        <option value="5" selected>5 Sources (Balanced ~2 min)</option>
+                        <option value="8">8 Sources (Thorough ~3 min)</option>
+                        <option value="12">12 Sources (Comprehensive ~5 min)</option>
+                        <option value="15">15 Sources (Maximum ~8 min)</option>
+                    </select>
+                </div>
+                <button class="btn btn-primary" onclick="initializeAndSearch()">
+                    <span id="searchBtnText">Search & Analyze</span>
+                    <span id="searchSpinner" class="loading-spinner" style="display: none;"></span>
+                </button>
+                <button class="btn btn-secondary" onclick="initializePhi3()">Initialize Phi-3</button>
+            </div>
+            
+            <div class="progress-bar">
+                <div class="progress-fill" id="progressBar"></div>
+            </div>
+            
+            <div id="status" class="status" style="display: none;"></div>
+        </div>
+
+        <div class="results-grid">
+            <div class="results-section">
+                <h3>📰 Search Results</h3>
+                <div id="searchResults">
+                    <p style="color: #666; font-style: italic;">Enter a search term and click "Search & Analyze" to see results...</p>
+                </div>
+            </div>
+
+            <div class="results-section">
+                <h3>🧠 AI Analysis</h3>
+                <div id="analysisResults">
+                    <p style="color: #666; font-style: italic;">AI analysis will appear here after search results are processed...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Global variables
+        let phi3Engine = null;
+        let isInitialized = false;
+        let searchResults = [];
+
+        // Comprehensive JSON cleaning utility for AI responses
+        function cleanAndParseAiJson(rawText, fallbackObject = null) {
+            if (!rawText || typeof rawText !== 'string') {
+                console.warn('Invalid input for JSON cleaning:', rawText);
+                return fallbackObject;
+            }
+
+            try {
+                // First attempt: direct parsing (might already be clean JSON)
+                return JSON.parse(rawText.trim());
+            } catch (directError) {
+                console.log('Direct JSON parsing failed, attempting to clean...');
+            }
+
+            let cleanedText = rawText.trim();
+
+            // Remove common AI response prefixes and suffixes
+            const prefixPatterns = [
+                /^(Here's|Here is|Based on|The analysis is|Analysis|Result|Response|Looking at|I'll analyze|Let me analyze).*?[:\n]/i,
+                /^```(json)?\s*/i,  // Remove markdown code blocks
+                /^.*?(sure[,!]?\s*|certainly[,!]?\s*|of course[,!]?\s*)/i,  // Remove pleasantries
+            ];
+
+            const suffixPatterns = [
+                /```\s*$/i,  // Remove closing markdown
+                /\n\n.*$/s,  // Remove paragraphs after JSON
+                /\n\*.*$/s,  // Remove bullet points/notes
+                /\n(Note|Please|This|I hope|Let me know|Feel free).*$/si,  // Remove common trailing notes
+                /\n(The above|This analysis|This JSON|Hope this helps).*$/si,
+            ];
+
+            // Apply prefix cleaning
+            for (const pattern of prefixPatterns) {
+                cleanedText = cleanedText.replace(pattern, '');
+            }
+
+            // Apply suffix cleaning
+            for (const pattern of suffixPatterns) {
+                cleanedText = cleanedText.replace(pattern, '');
+            }
+
+            // Extract JSON using brace matching
+            const extractedJson = extractJsonByBraceMatching(cleanedText);
+            if (extractedJson) {
+                cleanedText = extractedJson;
+            }
+
+            // Final cleanup for common JSON issues
+            cleanedText = cleanedText
+                .replace(/,(\s*[}\]])/g, '$1')  // Remove trailing commas
+                .replace(/\\n/g, '\\\\n')  // Fix newline escaping
+                .replace(/\n\s+/g, ' ')  // Collapse whitespace
+                .replace(/([{,]\s*)(\w+)(\s*:)/g, '$1"$2"$3')  // Quote unquoted keys (basic attempt)
+                .trim();
+
+            // Try parsing the cleaned text
+            try {
+                const parsed = JSON.parse(cleanedText);
+                console.log('Successfully cleaned and parsed JSON');
+                return parsed;
+            } catch (cleanedError) {
+                console.warn('Failed to parse cleaned JSON:', cleanedError);
+                console.warn('Cleaned text was:', cleanedText);
+                
+                // Try more aggressive cleanup
+                const lastDitchAttempt = aggressiveJsonCleanup(cleanedText);
+                if (lastDitchAttempt) {
+                    try {
+                        const finalParsed = JSON.parse(lastDitchAttempt);
+                        console.log('Successfully parsed JSON after aggressive cleanup');
+                        return finalParsed;
+                    } catch (finalError) {
+                        console.warn('Even aggressive cleanup failed:', finalError);
+                    }
+                }
+
+                // Return fallback object if provided, otherwise return an error object
+                return fallbackObject || {
+                    parsing_error: true,
+                    original_text: rawText,
+                    cleaned_text: cleanedText,
+                    error_message: cleanedError.message
+                };
+            }
+        }
+
+        // Extract JSON by matching braces
+        function extractJsonByBraceMatching(text) {
+            let jsonStart = -1;
+            let jsonEnd = -1;
+            let braceCount = 0;
+            let inString = false;
+            let escapeNext = false;
+
+            for (let i = 0; i < text.length; i++) {
+                const char = text[i];
+                
+                if (jsonStart === -1 && char === '{') {
+                    jsonStart = i;
+                    braceCount = 1;
+                    continue;
+                }
+
+                if (jsonStart !== -1) {
+                    if (escapeNext) {
+                        escapeNext = false;
+                        continue;
+                    }
+
+                    if (char === '\\') {
+                        escapeNext = true;
+                        continue;
+                    }
+
+                    if (char === '"' && !escapeNext) {
+                        inString = !inString;
+                        continue;
+                    }
+
+                    if (!inString) {
+                        if (char === '{') {
+                            braceCount++;
+                        } else if (char === '}') {
+                            braceCount--;
+                            if (braceCount === 0) {
+                                jsonEnd = i;
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (jsonStart !== -1 && jsonEnd !== -1) {
+                return text.substring(jsonStart, jsonEnd + 1);
+            }
+
+            return null;
+        }
+
+        // Aggressive cleanup for malformed JSON
+        function aggressiveJsonCleanup(text) {
+            try {
+                // Fix common issues
+                let fixed = text
+                    .replace(/([{,]\s*)([a-zA-Z_][a-zA-Z0-9_]*)\s*:/g, '$1"$2":')  // Quote keys
+                    .replace(/:\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*([,}])/g, ':"$1"$2')  // Quote unquoted string values
+                    .replace(/,\s*}/g, '}')  // Remove trailing commas in objects
+                    .replace(/,\s*]/g, ']')  // Remove trailing commas in arrays
+                    .replace(/\}\s*\{/g, '},{')  // Fix missing commas between objects
+                    .replace(/\]\s*\[/g, '],[');  // Fix missing commas between arrays
+
+                return fixed;
+            } catch (error) {
+                console.warn('Aggressive cleanup failed:', error);
+                return null;
+            }
+        }
+
+        // List of proxy URLs to try for fetching web content
+        const proxies = [
+            'https://corsproxy.io/?',
+            'https://api.codetabs.com/v1/proxy?quest=',
+            'https://thingproxy.freeboard.io/fetch/',
+        ];
+
+        // Define search engines
+        const searchEngines = [
+            { name: 'duckduckgo', urlBase: 'https://html.duckduckgo.com/html/?q=' }
+        ];
+
+        // Initialize Phi-3 model
+        async function initializePhi3() {
+            try {
+                updateStatus('Initializing Phi-3 model... This may take a few minutes on first load.', 'loading');
+                updateProgress(10);
+                
+                // Wait for WebLLM to be available
+                let attempts = 0;
+                while (!window.webllm && attempts < 50) {
+                    await new Promise(resolve => setTimeout(resolve, 100));
+                    attempts++;
+                }
+                
+                if (!window.webllm) {
+                    throw new Error('WebLLM library failed to load. Please refresh the page and try again.');
+                }
+
+                updateStatus('WebLLM loaded successfully. Initializing model...', 'loading');
+                updateProgress(20);
+
+                const initProgressCallback = (report) => {
+                    console.log('Init progress:', report);
+                    const progress = Math.round((report.progress || 0) * 80) + 20; // 20-100%
+                    updateProgress(progress);
+                    updateStatus(`Loading model: ${progress}% - ${report.text || ''}`, 'loading');
+                };
+
+                phi3Engine = new window.webllm.MLCEngine();
+                
+                // Try different model names in case the exact one isn't available
+                const modelOptions = [
+                    "Phi-3-mini-4k-instruct-q4f16_1-MLC",
+                    "Phi-3-mini-4k-instruct-q4f32_1-MLC",
+                    "Llama-3-8B-Instruct-q4f32_1-MLC",
+                    "Llama-3-8B-Instruct-q4f16_1-MLC"
+                ];
+                
+                let modelLoaded = false;
+                for (const modelName of modelOptions) {
+                    try {
+                        updateStatus(`Trying to load ${modelName}...`, 'loading');
+                        await phi3Engine.reload(modelName, {
+                            initProgressCallback: initProgressCallback
+                        });
+                        updateStatus(`Successfully loaded ${modelName}!`, 'loading');
+                        modelLoaded = true;
+                        break;
+                    } catch (modelError) {
+                        console.warn(`Failed to load ${modelName}:`, modelError);
+                        continue;
+                    }
+                }
+                
+                if (!modelLoaded) {
+                    throw new Error('Failed to load any available models. Please check your internet connection and try again.');
+                }
+                
+                isInitialized = true;
+                updateProgress(100);
+                updateStatus('AI model initialized successfully! Ready to analyze news.', 'success');
+                
+            } catch (error) {
+                console.error('Failed to initialize Phi-3:', error);
+                updateStatus(`Failed to initialize AI model: ${error.message}`, 'error');
+                updateProgress(0);
+            }
+        }
+
+        // Update status display
+        function updateStatus(message, type) {
+            const statusEl = document.getElementById('status');
+            statusEl.textContent = message;
+            statusEl.className = `status ${type}`;
+            statusEl.style.display = 'block';
+        }
+
+        // Update progress bar
+        function updateProgress(percentage) {
+            const progressBar = document.getElementById('progressBar');
+            progressBar.style.width = `${percentage}%`;
+        }
+
+        // Initialize and search
+        async function initializeAndSearch() {
+            if (!isInitialized) {
+                await initializePhi3();
+            }
+            
+            if (isInitialized) {
+                await performSearch();
+            }
+        }
+
+        // Perform web search
+        async function performSearch() {
+            const query = document.getElementById('searchInput').value.trim();
+            const sourceCount = parseInt(document.getElementById('sourceCount').value) || 5;
+            
+            if (!query) {
+                updateStatus('Please enter a search term', 'error');
+                return;
+            }
+
+            const searchBtn = document.getElementById('searchBtnText');
+            const searchSpinner = document.getElementById('searchSpinner');
+            
+            searchBtn.style.display = 'none';
+            searchSpinner.style.display = 'inline-block';
+            
+            try {
+                updateStatus(`Searching for ${sourceCount} news sources...`, 'loading');
+                updateProgress(20);
+
+                const results = await searchWeb(query);
+                searchResults = results;
+                
+                displaySearchResults(results);
+                updateProgress(60);
+                
+                if (results.length > 0) {
+                    const foundCount = results.length;
+                    const analysisTime = estimateAnalysisTime(foundCount);
+                    updateStatus(`Found ${foundCount} sources. Analyzing with Phi-3... (Est. ${analysisTime})`, 'loading');
+                    await analyzeResults(results, query);
+                    updateProgress(100);
+                    updateStatus(`Analysis complete! Processed ${foundCount} sources successfully.`, 'success');
+                } else {
+                    updateStatus('No results found. Try a different search term or reduce the number of sources.', 'error');
+                }
+                
+            } catch (error) {
+                console.error('Search error:', error);
+                updateStatus(`Search failed: ${error.message}`, 'error');
+            } finally {
+                searchBtn.style.display = 'inline-block';
+                searchSpinner.style.display = 'none';
+                updateProgress(0);
+            }
+        }
+
+        // Estimate analysis time based on number of sources
+        function estimateAnalysisTime(sourceCount) {
+            if (sourceCount <= 3) return "30-60 seconds";
+            if (sourceCount <= 5) return "1-2 minutes";
+            if (sourceCount <= 8) return "2-3 minutes";
+            if (sourceCount <= 12) return "3-5 minutes";
+            return "5-8 minutes";
+        }
+
+        // Search web using DuckDuckGo
+        async function searchWeb(query) {
+            const results = [];
+            const maxResults = parseInt(document.getElementById('sourceCount').value) || 5;
+            const searchUrl = `${searchEngines[0].urlBase}${encodeURIComponent(query)}`;
+            
+            console.log(`Searching for ${maxResults} sources about: ${query}`);
+            updateStatus(`Searching for ${maxResults} sources...`, 'loading');
+            
+            for (const proxy of proxies) {
+                try {
+                    const response = await fetch(proxy + encodeURIComponent(searchUrl));
+                    const html = await response.text();
+                    
+                    const parser = new DOMParser();
+                    const doc = parser.parseFromString(html, 'text/html');
+                    
+                    // Extract search results from DuckDuckGo HTML
+                    const resultElements = doc.querySelectorAll('.result');
+                    
+                    for (const element of resultElements) {
+                        const titleEl = element.querySelector('.result__title a');
+                        const snippetEl = element.querySelector('.result__snippet');
+                        const urlEl = element.querySelector('.result__url');
+                        
+                        if (titleEl && snippetEl) {
+                            results.push({
+                                title: titleEl.textContent.trim(),
+                                snippet: snippetEl.textContent.trim(),
+                                url: titleEl.href || (urlEl ? urlEl.textContent.trim() : ''),
+                                source: 'DuckDuckGo'
+                            });
+                        }
+                        
+                        if (results.length >= maxResults) break; // Use user-selected limit
+                    }
+                    
+                    if (results.length > 0) break; // Success with this proxy
+                    
+                } catch (error) {
+                    console.warn(`Proxy ${proxy} failed:`, error);
+                    continue;
+                }
+            }
+            
+            console.log(`Found ${results.length} sources out of ${maxResults} requested`);
+            return results;
+        }
+
+        // Display search results
+        function displaySearchResults(results) {
+            const container = document.getElementById('searchResults');
+            const requestedCount = parseInt(document.getElementById('sourceCount').value) || 5;
+            
+            if (results.length === 0) {
+                container.innerHTML = '<p style="color: #666;">No search results found.</p>';
+                return;
+            }
+            
+            // Add header with source count info
+            let headerHtml = `
+                <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 12px; border-radius: 8px; margin-bottom: 15px; font-weight: bold; text-align: center;">
+                    📊 Found ${results.length} of ${requestedCount} requested sources
+                    ${results.length < requestedCount ? `<br><small style="opacity: 0.9; font-weight: normal;">Some sources may not be available</small>` : ''}
+                </div>
+            `;
+            
+            const resultsHtml = results.map((result, index) => `
+                <div class="search-result">
+                    <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px;">
+                        <span style="background: #667eea; color: white; padding: 4px 8px; border-radius: 50%; font-size: 12px; font-weight: bold; min-width: 24px; text-align: center;">${index + 1}</span>
+                        <h4 style="margin: 0; flex: 1;">${escapeHtml(result.title)}</h4>
+                    </div>
+                    <p>${escapeHtml(result.snippet)}</p>
+                    ${result.url ? `<a href="${escapeHtml(result.url)}" target="_blank" rel="noopener">Read more</a>` : ''}
+                </div>
+            `).join('');
+            
+            container.innerHTML = headerHtml + resultsHtml;
+        }
+
+        // Analyze results with Phi-3 - now with chunked analysis
+        async function analyzeResults(results, originalQuery) {
+            if (!phi3Engine || !isInitialized) {
+                updateStatus('Phi-3 not initialized', 'error');
+                return;
+            }
+
+            try {
+                updateStatus('Analyzing content in chunks...', 'loading');
+                updateProgress(60);
+
+                let allAnalysisData = [];
+                const totalSources = results.length;
+                
+                // Analyze each source separately in chunks
+                for (let i = 0; i < results.length; i++) {
+                    const result = results[i];
+                    updateStatus(`Analyzing source ${i + 1}/${totalSources}: ${result.title.substring(0, 50)}...`, 'loading');
+                    
+                    const sourceContent = `Title: ${result.title}\nContent: ${result.snippet}\nURL: ${result.url}`;
+                    const chunks = chunkText(sourceContent, 4000); // Leave buffer for prompt
+                    
+                    const sourceAnalysis = {
+                        sourceTitle: result.title,
+                        sourceUrl: result.url,
+                        chunks: []
+                    };
+                    
+                    // Analyze each chunk
+                    for (let j = 0; j < chunks.length; j++) {
+                        updateStatus(`Analyzing source ${i + 1}/${totalSources}, chunk ${j + 1}/${chunks.length}...`, 'loading');
+                        
+                        const chunkData = await analyzeChunk(chunks[j], originalQuery, i + 1, j + 1);
+                        if (chunkData) {
+                            sourceAnalysis.chunks.push(chunkData);
+                        }
+                        
+                        // Small delay to prevent overwhelming the model
+                        await new Promise(resolve => setTimeout(resolve, 100));
+                    }
+                    
+                    allAnalysisData.push(sourceAnalysis);
+                    
+                    // Update progress
+                    const progress = 60 + ((i + 1) / totalSources) * 35;
+                    updateProgress(progress);
+                }
+                
+                // Create final summary from all chunk data
+                updateStatus('Creating final summary...', 'loading');
+                const finalSummary = await createFinalSummary(allAnalysisData, originalQuery);
+                
+                displayChunkedAnalysis(allAnalysisData, finalSummary, originalQuery);
+                updateProgress(100);
+                updateStatus('Chunked analysis complete!', 'success');
+                
+            } catch (error) {
+                console.error('Analysis error:', error);
+                updateStatus(`Analysis failed: ${error.message}`, 'error');
+            }
+        }
+
+        // Split text into chunks of specified size
+        function chunkText(text, maxChunkSize) {
+            if (text.length <= maxChunkSize) {
+                return [text];
+            }
+            
+            const chunks = [];
+            let currentPos = 0;
+            
+            while (currentPos < text.length) {
+                let endPos = currentPos + maxChunkSize;
+                
+                // Try to break at word boundaries
+                if (endPos < text.length) {
+                    const lastSpace = text.lastIndexOf(' ', endPos);
+                    const lastPeriod = text.lastIndexOf('.', endPos);
+                    const lastNewline = text.lastIndexOf('\n', endPos);
+                    
+                    const breakPoint = Math.max(lastSpace, lastPeriod, lastNewline);
+                    if (breakPoint > currentPos + maxChunkSize * 0.7) {
+                        endPos = breakPoint + 1;
+                    }
+                }
+                
+                chunks.push(text.substring(currentPos, endPos).trim());
+                currentPos = endPos;
+            }
+            
+            return chunks.filter(chunk => chunk.length > 0);
+        }
+
+        // Clean and extract JSON from AI response that may contain extra text
+        function cleanJsonFromAiResponse(rawText) {
+            // Use the comprehensive JSON cleaning utility
+            const fallbackStructure = {
+                source_info: { source_number: 0, chunk_number: 0 },
+                dates: [],
+                people: [],
+                organizations: [],
+                places: [],
+                events: [],
+                political_figures: [],
+                political_bias_indicators: [],
+                overall_tone: "neutral",
+                key_topics: [],
+                quotes: []
+            };
+
+            const result = cleanAndParseAiJson(rawText, fallbackStructure);
+            
+            // If it's a parsed object, return it as-is
+            if (typeof result === 'object' && !result.parsing_error) {
+                return JSON.stringify(result);
+            }
+            
+            // If parsing failed, return the fallback structure but preserve error info
+            if (result.parsing_error) {
+                console.warn('JSON cleaning failed, using fallback structure');
+                return JSON.stringify({
+                    ...fallbackStructure,
+                    parsing_error: true,
+                    error_details: result
+                });
+            }
+
+            return JSON.stringify(result);
+        }
+
+        // Analyze a single chunk and return JSON data
+        async function analyzeChunk(chunkContent, originalQuery, sourceNum, chunkNum) {
+            try {
+                const prompt = `Analyze this news content chunk about "${originalQuery}". Extract ONLY explicitly mentioned information and return it as valid JSON.
+Content chunk:
+${chunkContent}
+
+IMPORTANT: Return ONLY the JSON object with no additional text, explanations, or notes. Use this EXACT format (omit fields if not found):
+{
+  "source_info": {
+    "source_number": ${sourceNum},
+    "chunk_number": ${chunkNum}
+  },
+  "dates": ["YYYY-MM-DD or specific date mentioned"],
+  "people": ["Full names of individuals mentioned"],
+  "organizations": ["Names of companies, agencies, groups"],
+  "places": ["Geographic locations, cities, countries"],
+  "events": ["Specific events or incidents described"],
+  "political_figures": [
+    {
+      "name": "Figure name",
+      "tone": "positive/negative/neutral",
+      "context": "Brief context of mention"
+    }
+  ],
+  "political_bias_indicators": ["Specific biased language or phrases"],
+  "overall_tone": "positive/negative/neutral",
+  "key_topics": ["Main subjects discussed"],
+  "quotes": ["Direct quotes if any"]
+}`;
+
+                const response = await phi3Engine.chat.completions.create({
+                    messages: [{ role: "user", content: prompt }],
+                    temperature: 0.1,
+                    max_tokens: 800,
+                });
+
+                const rawResponse = response.choices[0].message.content.trim();
+                
+                // Clean the AI response to extract pure JSON
+                const cleanedJson = cleanJsonFromAiResponse(rawResponse);
+                
+                // Try to parse the cleaned JSON
+                try {
+                    const parsedData = JSON.parse(cleanedJson);
+                    console.log(`Successfully parsed JSON for chunk ${sourceNum}-${chunkNum}:`, parsedData);
+                    return parsedData;
+                    
+                } catch (parseError) {
+                    console.warn(`Failed to parse cleaned JSON for chunk ${sourceNum}-${chunkNum}:`, parseError);
+                    console.warn('Cleaned JSON text:', cleanedJson);
+                    console.warn('Original raw response:', rawResponse);
+                    
+                    // Try one more aggressive cleanup attempt
+                    try {
+                        // Extract just the content between the first { and last }
+                        const match = cleanedJson.match(/\{[\s\S]*\}/);
+                        if (match) {
+                            const finalAttempt = match[0];
+                            const lastAttemptParsed = JSON.parse(finalAttempt);
+                            console.log(`JSON parsing succeeded on final attempt for chunk ${sourceNum}-${chunkNum}`);
+                            return lastAttemptParsed;
+                        }
+                    } catch (finalError) {
+                        console.warn('Final parsing attempt also failed:', finalError);
+                    }
+                    
+                    // Return a basic structure if all JSON parsing attempts fail
+                    return {
+                        source_info: { source_number: sourceNum, chunk_number: chunkNum },
+                        parsing_error: true,
+                        raw_content: rawResponse,
+                        cleaned_content: cleanedJson,
+                        error_message: parseError.message
+                    };
+                }
+                
+            } catch (error) {
+                console.error(`Error analyzing chunk ${sourceNum}-${chunkNum}:`, error);
+                return null;
+            }
+        }
+
+        // Create final summary from all chunk data
+        async function createFinalSummary(allAnalysisData, originalQuery) {
+            try {
+                // Aggregate all data from chunks
+                const aggregatedData = {
+                    dates: new Set(),
+                    people: new Set(),
+                    organizations: new Set(),
+                    places: new Set(),
+                    events: new Set(),
+                    political_figures: new Map(),
+                    political_bias_indicators: new Set(),
+                    key_topics: new Set(),
+                    quotes: new Set(),
+                    tone_counts: { positive: 0, negative: 0, neutral: 0 }
+                };
+
+                // Process all chunks
+                allAnalysisData.forEach(sourceAnalysis => {
+                    sourceAnalysis.chunks.forEach(chunkData => {
+                        if (chunkData.parsing_error) return;
+                        
+                        // Aggregate arrays
+                        if (chunkData.dates) chunkData.dates.forEach(d => aggregatedData.dates.add(d));
+                        if (chunkData.people) chunkData.people.forEach(p => aggregatedData.people.add(p));
+                        if (chunkData.organizations) chunkData.organizations.forEach(o => aggregatedData.organizations.add(o));
+                        if (chunkData.places) chunkData.places.forEach(pl => aggregatedData.places.add(pl));
+                        if (chunkData.events) chunkData.events.forEach(e => aggregatedData.events.add(e));
+                        if (chunkData.key_topics) chunkData.key_topics.forEach(t => aggregatedData.key_topics.add(t));
+                        if (chunkData.quotes) chunkData.quotes.forEach(q => aggregatedData.quotes.add(q));
+                        if (chunkData.political_bias_indicators) chunkData.political_bias_indicators.forEach(b => aggregatedData.political_bias_indicators.add(b));
+                        
+                        // Aggregate political figures
+                        if (chunkData.political_figures) {
+                            chunkData.political_figures.forEach(figure => {
+                                const existing = aggregatedData.political_figures.get(figure.name) || {
+                                    name: figure.name,
+                                    tones: [],
+                                    contexts: []
+                                };
+                                existing.tones.push(figure.tone);
+                                existing.contexts.push(figure.context);
+                                aggregatedData.political_figures.set(figure.name, existing);
+                            });
+                        }
+                        
+                        // Count tones
+                        if (chunkData.overall_tone) {
+                            aggregatedData.tone_counts[chunkData.overall_tone] = 
+                                (aggregatedData.tone_counts[chunkData.overall_tone] || 0) + 1;
+                        }
+                    });
+                });
+
+                // Determine overall tone
+                const toneEntries = Object.entries(aggregatedData.tone_counts);
+                const dominantTone = toneEntries.reduce((a, b) => a[1] > b[1] ? a : b)[0];
+
+                // Create summary
+                return {
+                    query: originalQuery,
+                    total_sources: allAnalysisData.length,
+                    total_chunks: allAnalysisData.reduce((sum, source) => sum + source.chunks.length, 0),
+                    summary: {
+                        dates: Array.from(aggregatedData.dates).sort(),
+                        people: Array.from(aggregatedData.people).sort(),
+                        organizations: Array.from(aggregatedData.organizations).sort(),
+                        places: Array.from(aggregatedData.places).sort(),
+                        events: Array.from(aggregatedData.events),
+                        key_topics: Array.from(aggregatedData.key_topics),
+                        political_figures: Array.from(aggregatedData.political_figures.values()).map(figure => ({
+                            name: figure.name,
+                            dominant_tone: getMostFrequent(figure.tones),
+                            tone_distribution: getTonesDistribution(figure.tones),
+                            contexts: figure.contexts
+                        })),
+                        overall_tone: dominantTone,
+                        tone_distribution: aggregatedData.tone_counts,
+                        political_bias_indicators: Array.from(aggregatedData.political_bias_indicators),
+                        notable_quotes: Array.from(aggregatedData.quotes).slice(0, 5) // Limit quotes
+                    }
+                };
+                
+            } catch (error) {
+                console.error('Error creating final summary:', error);
+                return { error: error.message };
+            }
+        }
+
+        // Helper function to get most frequent item
+        function getMostFrequent(arr) {
+            if (!arr || arr.length === 0) return 'unknown';
+            const counts = {};
+            arr.forEach(item => counts[item] = (counts[item] || 0) + 1);
+            return Object.entries(counts).reduce((a, b) => a[1] > b[1] ? a : b)[0];
+        }
+
+        // Helper function to get tone distribution
+        function getTonesDistribution(tones) {
+            const counts = { positive: 0, negative: 0, neutral: 0 };
+            tones.forEach(tone => counts[tone] = (counts[tone] || 0) + 1);
+            return counts;
+        }
+
+        // Display chunked analysis results
+        function displayChunkedAnalysis(allAnalysisData, finalSummary, query) {
+            const container = document.getElementById('analysisResults');
+            
+            let html = `<div class="analysis-item">
+                <h4>📊 Final Summary for: "${escapeHtml(query)}"</h4>
+                <div style="margin-top: 10px;">
+                    <p><strong>Sources Analyzed:</strong> ${finalSummary.total_sources} | <strong>Total Chunks:</strong> ${finalSummary.total_chunks}</p>
+                </div>
+            </div>`;
+
+            // Display aggregated summary
+            if (finalSummary && finalSummary.summary) {
+                const summary = finalSummary.summary;
+                
+                if (summary.dates && summary.dates.length > 0) {
+                    html += `<div class="analysis-item">
+                        <h4>📅 Dates Found</h4>
+                        ${summary.dates.map(date => `<span class="category">${escapeHtml(date)}</span>`).join(' ')}
+                    </div>`;
+                }
+                
+                if (summary.people && summary.people.length > 0) {
+                    html += `<div class="analysis-item">
+                        <h4>👥 People Mentioned</h4>
+                        ${summary.people.map(person => `<span class="category">${escapeHtml(person)}</span>`).join(' ')}
+                    </div>`;
+                }
+                
+                if (summary.organizations && summary.organizations.length > 0) {
+                    html += `<div class="analysis-item">
+                        <h4>🏢 Organizations</h4>
+                        ${summary.organizations.map(org => `<span class="category">${escapeHtml(org)}</span>`).join(' ')}
+                    </div>`;
+                }
+                
+                if (summary.places && summary.places.length > 0) {
+                    html += `<div class="analysis-item">
+                        <h4>📍 Places</h4>
+                        ${summary.places.map(place => `<span class="category">${escapeHtml(place)}</span>`).join(' ')}
+                    </div>`;
+                }
+                
+                if (summary.events && summary.events.length > 0) {
+                    html += `<div class="analysis-item">
+                        <h4>📰 Events</h4>
+                        ${summary.events.map(event => `<div style="margin: 5px 0; color: #555;">• ${escapeHtml(event)}</div>`).join('')}
+                    </div>`;
+                }
+                
+                if (summary.political_figures && summary.political_figures.length > 0) {
+                    html += `<div class="analysis-item">
+                        <h4>🎭 Political Figures & Tones</h4>
+                        ${summary.political_figures.map(figure => {
+                            const toneClass = getToneClass(figure.dominant_tone);
+                            const distribution = Object.entries(figure.tone_distribution)
+                                .filter(([_, count]) => count > 0)
+                                .map(([tone, count]) => `${tone}: ${count}`)
+                                .join(', ');
+                            return `<div style="margin: 8px 0; padding: 8px; background: #f8f9fa; border-radius: 5px;">
+                                <strong>${escapeHtml(figure.name)}:</strong> 
+                                <span class="tone-indicator ${toneClass}">${escapeHtml(figure.dominant_tone)}</span>
+                                <br><small style="color: #666;">Distribution: ${distribution}</small>
+                            </div>`;
+                        }).join('')}
+                    </div>`;
+                }
+                
+                if (summary.key_topics && summary.key_topics.length > 0) {
+                    html += `<div class="analysis-item">
+                        <h4>🔑 Key Topics</h4>
+                        ${summary.key_topics.map(topic => `<span class="category">${escapeHtml(topic)}</span>`).join(' ')}
+                    </div>`;
+                }
+                
+                if (summary.overall_tone && summary.overall_tone !== 'neutral') {
+                    const toneClass = getToneClass(summary.overall_tone);
+                    const distribution = Object.entries(summary.tone_distribution)
+                        .map(([tone, count]) => `${tone}: ${count}`)
+                        .join(', ');
+                    html += `<div class="analysis-item">
+                        <h4>🎯 Overall Tone</h4>
+                        <span class="tone-indicator ${toneClass}">${escapeHtml(summary.overall_tone)}</span>
+                        <br><small style="color: #666;">Distribution across chunks: ${distribution}</small>
+                    </div>`;
+                }
+                
+                if (summary.political_bias_indicators && summary.political_bias_indicators.length > 0) {
+                    html += `<div class="analysis-item">
+                        <h4>⚖️ Political Bias Indicators</h4>
+                        ${summary.political_bias_indicators.map(indicator => 
+                            `<div style="margin: 3px 0; color: #666;">• "${escapeHtml(indicator)}"</div>`
+                        ).join('')}
+                    </div>`;
+                }
+                
+                if (summary.notable_quotes && summary.notable_quotes.length > 0) {
+                    html += `<div class="analysis-item">
+                        <h4>💬 Notable Quotes</h4>
+                        ${summary.notable_quotes.map(quote => 
+                            `<div style="margin: 5px 0; padding: 5px; background: #f0f0f0; border-left: 3px solid #667eea; font-style: italic;">"${escapeHtml(quote)}"</div>`
+                        ).join('')}
+                    </div>`;
+                }
+            }
+
+            // Show detailed chunk analysis (collapsible)
+            html += `<div class="analysis-item">
+                <h4 style="cursor: pointer;" onclick="toggleChunkDetails()">
+                    🔍 Detailed Chunk Analysis 
+                    <span id="chunkToggle" style="font-size: 0.8em;">[Show]</span>
+                </h4>
+                <div id="chunkDetails" style="display: none; margin-top: 10px;">`;
+            
+            allAnalysisData.forEach((sourceAnalysis, sourceIndex) => {
+                html += `<div style="margin-bottom: 15px; border: 1px solid #ddd; border-radius: 5px; padding: 10px;">
+                    <h5 style="color: #333; margin-bottom: 10px;">Source ${sourceIndex + 1}: ${escapeHtml(sourceAnalysis.sourceTitle)}</h5>`;
+                
+                sourceAnalysis.chunks.forEach((chunkData, chunkIndex) => {
+                    if (chunkData.parsing_error) {
+                        html += `<div style="background: #ffe6e6; padding: 8px; margin: 5px 0; border-radius: 3px;">
+                            <strong>Chunk ${chunkIndex + 1}:</strong> Parsing error
+                            <details style="margin-top: 5px;">
+                                <summary>Raw content</summary>
+                                <pre style="font-size: 0.8em; white-space: pre-wrap;">${escapeHtml(chunkData.raw_content)}</pre>
+                            </details>
+                        </div>`;
+                    } else {
+                        html += `<div style="background: #f8f9fa; padding: 8px; margin: 5px 0; border-radius: 3px;">
+                            <strong>Chunk ${chunkIndex + 1}:</strong>
+                            <details style="margin-top: 5px;">
+                                <summary>JSON Data</summary>
+                                <pre style="font-size: 0.8em; white-space: pre-wrap; color: #333;">${JSON.stringify(chunkData, null, 2)}</pre>
+                            </details>
+                        </div>`;
+                    }
+                });
+                
+                html += '</div>';
+            });
+            
+            html += '</div></div>';
+
+            // Final JSON summary (collapsible)
+            html += `<div class="analysis-item">
+                <h4 style="cursor: pointer;" onclick="toggleJsonSummary()">
+                    📋 Complete JSON Summary 
+                    <span id="jsonToggle" style="font-size: 0.8em;">[Show]</span>
+                </h4>
+                <div id="jsonSummary" style="display: none; margin-top: 10px;">
+                    <pre style="background: #f8f9fa; padding: 15px; border-radius: 5px; overflow-x: auto; font-size: 0.85em;">${JSON.stringify(finalSummary, null, 2)}</pre>
+                </div>
+            </div>`;
+            
+            container.innerHTML = html;
+        }
+
+        // Toggle functions for collapsible sections
+        function toggleChunkDetails() {
+            const details = document.getElementById('chunkDetails');
+            const toggle = document.getElementById('chunkToggle');
+            if (details.style.display === 'none') {
+                details.style.display = 'block';
+                toggle.textContent = '[Hide]';
+            } else {
+                details.style.display = 'none';
+                toggle.textContent = '[Show]';
+            }
+        }
+
+        function toggleJsonSummary() {
+            const summary = document.getElementById('jsonSummary');
+            const toggle = document.getElementById('jsonToggle');
+            if (summary.style.display === 'none') {
+                summary.style.display = 'block';
+                toggle.textContent = '[Hide]';
+            } else {
+                summary.style.display = 'none';
+                toggle.textContent = '[Show]';
+            }
+        }
+
+        // Parse analysis text into structured data
+        function parseAnalysis(text) {
+            const sections = {
+                dates: [],
+                people: [],
+                organizations: [],
+                places: [],
+                bias: '',
+                tone: '',
+                politicalTones: []
+            };
+            
+            // Simple parsing - could be enhanced
+            const lines = text.split('\n');
+            let currentSection = '';
+            
+            for (const line of lines) {
+                const trimmed = line.trim();
+                
+                if (trimmed.includes('**DATES:**')) {
+                    currentSection = 'dates';
+                } else if (trimmed.includes('People:')) {
+                    currentSection = 'people';
+                } else if (trimmed.includes('Organizations:')) {
+                    currentSection = 'organizations';
+                } else if (trimmed.includes('Places:')) {
+                    currentSection = 'places';
+                } else if (trimmed.includes('**POLITICAL BIAS:**')) {
+                    currentSection = 'bias';
+                    const biasMatch = trimmed.match(/\*\*POLITICAL BIAS:\*\*\s*(.+)/);
+                    if (biasMatch) sections.bias = biasMatch[1];
+                } else if (trimmed.includes('**OVERALL TONE:**')) {
+                    currentSection = 'tone';
+                    const toneMatch = trimmed.match(/\*\*OVERALL TONE:\*\*\s*(.+)/);
+                    if (toneMatch) sections.tone = toneMatch[1];
+                } else if (trimmed.includes('**POLITICAL FIGURE TONES:**')) {
+                    currentSection = 'politicalTones';
+                } else if (trimmed.startsWith('- ')) {
+                    const item = trimmed.substring(2);
+                    if (currentSection === 'dates') sections.dates.push(item);
+                    else if (currentSection === 'people') sections.people.push(item);
+                    else if (currentSection === 'organizations') sections.organizations.push(item);
+                    else if (currentSection === 'places') sections.places.push(item);
+                    else if (currentSection === 'politicalTones') {
+                        const ptMatch = item.match(/(.+?):\s*(\w+)(?:\s*-\s*(.+))?/);
+                        if (ptMatch) {
+                            sections.politicalTones.push({
+                                figure: ptMatch[1],
+                                tone: ptMatch[2],
+                                explanation: ptMatch[3] || ''
+                            });
+                        }
+                    }
+                }
+            }
+            
+            return sections;
+        }
+
+        // Get CSS class for bias indicator
+        function getBiasClass(bias) {
+            const lowerBias = bias.toLowerCase();
+            if (lowerBias.includes('left')) return 'bias-left';
+            if (lowerBias.includes('right')) return 'bias-right';
+            if (lowerBias.includes('center')) return 'bias-center';
+            return 'bias-unknown';
+        }
+
+        // Get CSS class for tone indicator
+        function getToneClass(tone) {
+            const lowerTone = tone.toLowerCase();
+            if (lowerTone.includes('positive')) return 'tone-positive';
+            if (lowerTone.includes('negative')) return 'tone-negative';
+            return 'tone-neutral';
+        }
+
+        // Escape HTML to prevent XSS
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // Public utility function for manual JSON cleaning
+        // Usage: const cleanedJson = window.cleanJsonResponse(rawAiResponse);
+        window.cleanJsonResponse = function(rawText, customFallback = null) {
+            console.log('Manual JSON cleaning requested for:', rawText);
+            
+            const result = cleanAndParseAiJson(rawText, customFallback);
+            
+            if (typeof result === 'object') {
+                if (result.parsing_error) {
+                    console.warn('JSON cleaning failed:', result);
+                    return {
+                        success: false,
+                        error: result.error_message,
+                        originalText: result.original_text,
+                        cleanedText: result.cleaned_text,
+                        fallback: customFallback
+                    };
+                } else {
+                    console.log('JSON cleaning successful:', result);
+                    return {
+                        success: true,
+                        data: result,
+                        originalText: rawText
+                    };
+                }
+            }
+            
+            return {
+                success: true,
+                data: result,
+                originalText: rawText
+            };
+        };
+
+        // Handle Enter key in search input
+        document.getElementById('searchInput').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                initializeAndSearch();
+            }
+        });
+
+        // Initial setup
+        document.addEventListener('DOMContentLoaded', function() {
+            updateStatus('Loading AI library... Please wait a moment before initializing.', 'loading');
+            
+            // Check if WebLLM is available after a short delay
+            setTimeout(() => {
+                if (window.webllm) {
+                    updateStatus('Ready to search and analyze news. Click "Initialize Phi-3" to begin.', 'success');
+                } else {
+                    updateStatus('AI library still loading... You can try initializing in a few seconds.', 'loading');
+                }
+            }, 2000);
+        });
+    </script>
+</body>
+</html>
