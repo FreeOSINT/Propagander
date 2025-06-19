@@ -1,0 +1,2616 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Propagander - AI News Analysis Tool</title>
+    <script type="module">
+        // Import WebLLM from npm CDN
+        import * as webllm from "https://esm.run/@mlc-ai/web-llm";
+        window.webllm = webllm;
+    </script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+        
+        :root {
+            --primary-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            --secondary-gradient: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            --accent-gradient: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            --glass-bg: rgba(255, 255, 255, 0.1);
+            --glass-border: rgba(255, 255, 255, 0.2);
+            --text-primary: #2d3748;
+            --text-secondary: #4a5568;
+            --text-light: rgba(255, 255, 255, 0.9);
+            --shadow-soft: 0 10px 40px rgba(0, 0, 0, 0.1);
+            --shadow-medium: 0 20px 60px rgba(0, 0, 0, 0.15);
+            --shadow-strong: 0 30px 80px rgba(0, 0, 0, 0.2);
+            --border-radius: 20px;
+            --border-radius-small: 12px;
+            --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--primary-gradient);
+            background-attachment: fixed;
+            min-height: 100vh;
+            color: var(--text-primary);
+            line-height: 1.6;
+            overflow-x: hidden;
+        }
+
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: 
+                radial-gradient(circle at 20% 80%, rgba(120, 119, 198, 0.3) 0%, transparent 50%),
+                radial-gradient(circle at 80% 20%, rgba(255, 119, 198, 0.3) 0%, transparent 50%),
+                radial-gradient(circle at 40% 40%, rgba(120, 219, 255, 0.2) 0%, transparent 50%);
+            pointer-events: none;
+            z-index: -1;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+            position: relative;
+            z-index: 1;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+            background: var(--glass-bg);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border-radius: var(--border-radius);
+            padding: 40px;
+            border: 1px solid var(--glass-border);
+            box-shadow: var(--shadow-medium);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .header::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4), transparent);
+        }
+
+        .header h1 {
+            color: white;
+            font-size: clamp(2rem, 4vw, 3rem);
+            font-weight: 700;
+            margin-bottom: 15px;
+            text-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+            letter-spacing: -0.02em;
+            background: linear-gradient(135deg, #ffffff 0%, #e0e7ff 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .header p {
+            color: var(--text-light);
+            font-size: 1.2em;
+            font-weight: 400;
+            opacity: 0.9;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        /* Welcome Modal */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(10px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            opacity: 0;
+            visibility: hidden;
+            transition: var(--transition);
+        }
+
+        .modal-overlay.show {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .modal {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(20px);
+            border-radius: var(--border-radius);
+            padding: 40px;
+            max-width: 500px;
+            margin: 20px;
+            box-shadow: var(--shadow-strong);
+            border: 1px solid var(--glass-border);
+            text-align: center;
+            transform: scale(0.9) translateY(20px);
+            transition: var(--transition);
+        }
+
+        .modal-overlay.show .modal {
+            transform: scale(1) translateY(0);
+        }
+
+        .modal h2 {
+            color: var(--text-primary);
+            font-size: 1.8em;
+            font-weight: 600;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+
+        .modal p {
+            color: var(--text-secondary);
+            font-size: 1.1em;
+            line-height: 1.6;
+            margin-bottom: 30px;
+        }
+
+        .modal-button {
+            background: var(--primary-gradient);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: var(--border-radius-small);
+            font-size: 1.1em;
+            font-weight: 600;
+            cursor: pointer;
+            transition: var(--transition);
+            box-shadow: var(--shadow-soft);
+        }
+
+        .modal-button:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-medium);
+        }
+
+        .search-section {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border-radius: var(--border-radius);
+            padding: 35px;
+            margin-bottom: 30px;
+            box-shadow: var(--shadow-medium);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .search-section::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, rgba(102, 126, 234, 0.3), transparent);
+        }
+
+        .mode-selector {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 30px;
+            justify-content: center;
+            background: rgba(102, 126, 234, 0.1);
+            padding: 8px;
+            border-radius: 50px;
+            backdrop-filter: blur(10px);
+        }
+
+        .mode-selector label {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            cursor: pointer;
+            font-weight: 500;
+            color: var(--text-secondary);
+            padding: 12px 24px;
+            border-radius: 50px;
+            transition: var(--transition);
+            position: relative;
+            overflow: hidden;
+            user-select: none;
+        }
+
+        .mode-selector label:hover {
+            color: var(--text-primary);
+            transform: translateY(-1px);
+        }
+
+        .mode-selector input[type="radio"] {
+            display: none;
+        }
+
+        .mode-selector input[type="radio"]:checked + span {
+            color: white;
+        }
+
+        .mode-selector label:has(input:checked) {
+            background: var(--primary-gradient);
+            color: white;
+            box-shadow: var(--shadow-soft);
+            transform: translateY(-2px);
+        }
+
+        .mode-selector label:has(input:checked)::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.2) 0%, transparent 50%);
+            pointer-events: none;
+        }
+
+        .webpage-container {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        #webpageInput {
+            flex: 1;
+            padding: 15px;
+            border: 2px solid #ddd;
+            border-radius: 10px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+        }
+
+        #webpageInput:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .search-container {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        #searchInput, #webpageInput {
+            flex: 1;
+            padding: 18px 24px;
+            border: 2px solid rgba(102, 126, 234, 0.2);
+            border-radius: var(--border-radius-small);
+            font-size: 16px;
+            font-family: inherit;
+            background: rgba(255, 255, 255, 0.8);
+            backdrop-filter: blur(10px);
+            transition: var(--transition);
+            color: var(--text-primary);
+        }
+
+        #searchInput:focus, #webpageInput:focus {
+            outline: none;
+            border-color: #667eea;
+            background: rgba(255, 255, 255, 0.95);
+            box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.1);
+            transform: translateY(-1px);
+        }
+
+        #searchInput::placeholder, #webpageInput::placeholder {
+            color: var(--text-secondary);
+            opacity: 0.7;
+        }
+
+        .source-selector {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            min-width: 140px;
+        }
+
+        .source-selector label {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text-primary);
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+        }
+
+        #sourceCount {
+            padding: 18px 16px;
+            border: 2px solid rgba(102, 126, 234, 0.2);
+            border-radius: var(--border-radius-small);
+            font-size: 16px;
+            font-family: inherit;
+            background: rgba(255, 255, 255, 0.8);
+            backdrop-filter: blur(10px);
+            color: var(--text-primary);
+            cursor: pointer;
+            transition: var(--transition);
+        }
+
+        #sourceCount:focus {
+            outline: none;
+            border-color: #667eea;
+            background: rgba(255, 255, 255, 0.95);
+            box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.1);
+        }
+
+        #sourceCount:hover {
+            border-color: rgba(102, 126, 234, 0.4);
+            transform: translateY(-1px);
+        }
+
+        .btn {
+            padding: 18px 32px;
+            border: none;
+            border-radius: var(--border-radius-small);
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 600;
+            font-family: inherit;
+            transition: var(--transition);
+            text-transform: none;
+            letter-spacing: 0.5px;
+            position: relative;
+            overflow: hidden;
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            min-width: 160px;
+            justify-content: center;
+        }
+
+        .btn::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+            transition: left 0.5s;
+        }
+
+        .btn:hover::before {
+            left: 100%;
+        }
+
+        .btn-primary {
+            background: var(--primary-gradient);
+            color: white;
+            box-shadow: var(--shadow-soft);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-3px);
+            box-shadow: var(--shadow-medium);
+        }
+
+        .btn-primary:active {
+            transform: translateY(-1px);
+            box-shadow: var(--shadow-soft);
+        }
+
+        .btn-secondary {
+            background: var(--secondary-gradient);
+            color: white;
+            box-shadow: var(--shadow-soft);
+        }
+
+        .btn-secondary:hover {
+            transform: translateY(-3px);
+            box-shadow: var(--shadow-medium);
+        }
+
+        .status {
+            margin-top: 15px;
+            padding: 10px;
+            border-radius: 8px;
+            font-weight: bold;
+        }
+
+        .status.loading {
+            background-color: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeaa7;
+        }
+
+        .status.success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .status.error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .results-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 25px;
+            margin-top: 25px;
+        }
+
+        .results-section {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+        }
+
+        .results-section h3 {
+            color: #333;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 3px solid #667eea;
+            font-size: 1.3em;
+        }
+
+        .search-result {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 15px;
+            border-left: 4px solid #667eea;
+            transition: transform 0.2s;
+        }
+
+        .search-result:hover {
+            transform: translateX(5px);
+        }
+
+        .search-result h4 {
+            color: #333;
+            margin-bottom: 8px;
+            font-size: 1.1em;
+        }
+
+        .search-result p {
+            color: #666;
+            line-height: 1.5;
+            margin-bottom: 8px;
+        }
+
+        .search-result a {
+            color: #667eea;
+            text-decoration: none;
+            font-weight: bold;
+        }
+
+        .search-result a:hover {
+            text-decoration: underline;
+        }
+
+        .analysis-item {
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 15px;
+            border-left: 4px solid #764ba2;
+        }
+
+        .analysis-item h4 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 1.1em;
+        }
+
+        .analysis-item .category {
+            display: inline-block;
+            background: #667eea;
+            color: white;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.8em;
+            margin-right: 5px;
+            margin-bottom: 5px;
+        }
+
+        .bias-indicator {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.8em;
+            font-weight: bold;
+            margin-right: 5px;
+        }
+
+        .bias-left { background: #3498db; color: white; }
+        .bias-center { background: #95a5a6; color: white; }
+        .bias-right { background: #e74c3c; color: white; }
+        .bias-unknown { background: #f39c12; color: white; }
+
+        .tone-indicator {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.8em;
+            font-weight: bold;
+            margin-right: 5px;
+        }
+
+        .tone-positive { background: #27ae60; color: white; }
+        .tone-negative { background: #e74c3c; color: white; }
+        .tone-neutral { background: #95a5a6; color: white; }
+
+        .loading-spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            border-top: 3px solid currentColor;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: rgba(102, 126, 234, 0.1);
+            border-radius: 50px;
+            overflow: hidden;
+            margin: 20px 0;
+            position: relative;
+        }
+
+        .progress-bar::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(90deg, 
+                rgba(255, 255, 255, 0) 0%, 
+                rgba(255, 255, 255, 0.2) 50%, 
+                rgba(255, 255, 255, 0) 100%);
+            animation: shimmer 2s infinite;
+        }
+
+        @keyframes shimmer {
+            0% { transform: translateX(-100%); }
+            100% { transform: translateX(100%); }
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: var(--primary-gradient);
+            width: 0%;
+            transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+            border-radius: 50px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .progress-fill::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(90deg, 
+                transparent 0%, 
+                rgba(255, 255, 255, 0.3) 50%, 
+                transparent 100%);
+            animation: progress-shine 1.5s infinite;
+        }
+
+        @keyframes progress-shine {
+            0% { transform: translateX(-100%); }
+            100% { transform: translateX(100%); }
+        }
+
+        .info-sections {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            margin-top: 40px;
+            margin-bottom: 40px;
+        }
+
+        .info-section {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border-radius: var(--border-radius);
+            padding: 35px;
+            box-shadow: var(--shadow-medium);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .info-section::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, rgba(102, 126, 234, 0.3), transparent);
+        }
+
+        .info-section h3 {
+            color: var(--text-primary);
+            font-size: 1.5em;
+            font-weight: 600;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .info-section p {
+            color: var(--text-secondary);
+            line-height: 1.7;
+            margin-bottom: 15px;
+        }
+
+        .info-section ul {
+            color: var(--text-secondary);
+            line-height: 1.7;
+            margin-left: 20px;
+            margin-bottom: 15px;
+        }
+
+        .info-section li {
+            margin-bottom: 8px;
+        }
+
+        .info-section strong {
+            color: var(--text-primary);
+            font-weight: 600;
+        }
+
+        /* Webpage Analysis Styles */
+        .analysis-container {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: var(--border-radius-small);
+            padding: 25px;
+            margin-bottom: 20px;
+        }
+
+        .analysis-header {
+            margin-bottom: 25px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid rgba(102, 126, 234, 0.2);
+        }
+
+        .analysis-header h4 {
+            color: var(--text-primary);
+            font-size: 1.3em;
+            font-weight: 600;
+            margin-bottom: 10px;
+        }
+
+        .analysis-header p {
+            color: var(--text-secondary);
+            margin-bottom: 5px;
+        }
+
+        .analysis-header a {
+            color: #667eea;
+            text-decoration: none;
+            word-break: break-all;
+        }
+
+        .analysis-header a:hover {
+            text-decoration: underline;
+        }
+
+        .overall-analysis {
+            background: rgba(102, 126, 234, 0.1);
+            border-radius: var(--border-radius-small);
+            padding: 20px;
+            margin-bottom: 25px;
+        }
+
+        .overall-analysis h5 {
+            color: var(--text-primary);
+            font-size: 1.2em;
+            font-weight: 600;
+            margin-bottom: 15px;
+        }
+
+        .analysis-content {
+            color: var(--text-secondary);
+            line-height: 1.6;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.9em;
+            background: rgba(255, 255, 255, 0.5);
+            padding: 15px;
+            border-radius: var(--border-radius-small);
+        }
+
+        .segment-analyses h5 {
+            color: var(--text-primary);
+            font-size: 1.2em;
+            font-weight: 600;
+            margin-bottom: 20px;
+        }
+
+        .segment-analysis {
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: var(--border-radius-small);
+            padding: 20px;
+            margin-bottom: 15px;
+            border-left: 4px solid #667eea;
+        }
+
+        .segment-analysis h6 {
+            color: var(--text-primary);
+            font-size: 1.1em;
+            font-weight: 600;
+            margin-bottom: 10px;
+        }
+
+        .segment-content {
+            background: rgba(102, 126, 234, 0.1);
+            padding: 10px;
+            border-radius: var(--border-radius-small);
+            margin-bottom: 15px;
+            font-size: 0.9em;
+            color: var(--text-secondary);
+        }
+
+        .segment-analysis-content {
+            color: var(--text-secondary);
+            line-height: 1.6;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.85em;
+            background: rgba(255, 255, 255, 0.4);
+            padding: 12px;
+            border-radius: var(--border-radius-small);
+        }
+
+        .footer {
+            text-align: center;
+            margin-top: 40px;
+            padding: 20px;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .footer p {
+            color: rgba(255, 255, 255, 0.9);
+            font-size: 0.9em;
+            font-style: italic;
+            margin: 0;
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.3);
+        }
+
+        @media (max-width: 768px) {
+            .results-grid, .info-sections {
+                grid-template-columns: 1fr;
+            }
+            
+            .search-container, .webpage-container {
+                flex-direction: column;
+            }
+            
+            .source-selector {
+                align-self: flex-start;
+            }
+            
+            .mode-selector {
+                flex-direction: column;
+                align-items: center;
+                gap: 10px;
+            }
+            
+            .info-sections {
+                gap: 20px;
+                margin-top: 30px;
+                margin-bottom: 30px;
+            }
+            
+            .info-section {
+                padding: 25px;
+            }
+            
+            .info-section h3 {
+                font-size: 1.3em;
+            }
+            
+            .header h1 {
+                font-size: 2em;
+            }
+            
+            .footer {
+                margin-top: 30px;
+                padding: 15px;
+            }
+            
+            .footer p {
+                font-size: 0.8em;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Welcome Modal -->
+    <div class="modal-overlay" id="welcomeModal">
+        <div class="modal">
+            <h2>⚠️ Important Notice</h2>
+            <p>
+                <strong>AI can and will make mistakes.</strong> This tool uses artificial intelligence to analyze news content, but AI systems are not perfect and may produce inaccurate, biased, or incomplete information.
+            </p>
+            <p>
+                Please always utilize your own critical thinking abilities and verify important information through multiple reliable sources before making decisions based on AI analysis.
+            </p>
+            <button class="modal-button" onclick="closeWelcomeModal()">I Understand</button>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="header">
+            <h1>🔍 Propagander</h1>
+            <p>AI-powered news analysis tool for detecting bias, tone, and key information in media content</p>
+        </div>
+
+        <div class="search-section">
+            <div class="mode-selector">
+                <label>
+                    <input type="radio" name="searchMode" value="search" checked onchange="toggleSearchMode()">
+                    <span>Search News Topics</span>
+                </label>
+                <label>
+                    <input type="radio" name="searchMode" value="webpage" onchange="toggleSearchMode()">
+                    <span>Analyze Webpage</span>
+                </label>
+            </div>
+            
+            <div class="search-container" id="searchContainer">
+                <input type="text" id="searchInput" placeholder="Enter a news topic to research (e.g., 'climate change policy', 'election results', 'economic trends')">
+                <div class="source-selector" id="sourceSelector">
+                    <label for="sourceCount">Sources:</label>
+                    <select id="sourceCount">
+                        <option value="3">3 Sources</option>
+                        <option value="5" selected>5 Sources</option>
+                        <option value="8">8 Sources</option>
+                        <option value="10">10 Sources</option>
+                        <option value="15">15 Sources</option>
+                    </select>
+                </div>
+                <button class="btn btn-primary" onclick="initializeAndSearch()">
+                    <span id="searchBtnText">Search & Analyze</span>
+                    <span id="searchSpinner" class="loading-spinner" style="display: none;"></span>
+                </button>
+            </div>
+            
+            <div class="webpage-container" id="webpageContainer" style="display: none;">
+                <input type="url" id="webpageInput" placeholder="Enter webpage URL (e.g., https://example.com/article)">
+                <button class="btn btn-primary" onclick="analyzeWebpage()">
+                    <span id="webpageBtnText">Analyze Webpage</span>
+                    <span id="webpageSpinner" class="loading-spinner" style="display: none;"></span>
+                </button>
+            </div>
+            
+            <div class="progress-bar">
+                <div class="progress-fill" id="progressBar"></div>
+            </div>
+            
+            <div id="status" class="status" style="display: none;"></div>
+        </div>
+
+        <div class="results-grid">
+            <div class="results-section">
+                <h3>📰 Search Results</h3>
+                <div id="searchResults">
+                    <p style="color: #666; font-style: italic;">AI is initializing automatically. Enter a search term and click "Search & Analyze" when ready...</p>
+                </div>
+            </div>
+
+            <div class="results-section">
+                <h3>🧠 AI Analysis</h3>
+                <div id="analysisResults">
+                    <p style="color: #666; font-style: italic;">AI analysis will appear here after search results are processed. Phi-3 is initializing automatically...</p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="info-sections">
+            <div class="info-section">
+                <h3>🤔 What's the Purpose?</h3>
+                <p><strong>Propagander</strong> is designed to help users critically analyze news content and media by identifying potential biases, emotional tones, and key information that might influence public opinion.</p>
+                
+                <p>In today's information-rich environment, it's crucial to:</p>
+                <ul>
+                    <li><strong>Recognize bias:</strong> Understand political leanings and perspectives in news sources</li>
+                    <li><strong>Identify tone:</strong> Detect emotional manipulation or neutral reporting</li>
+                    <li><strong>Extract facts:</strong> Separate key dates, names, and events from opinion</li>
+                    <li><strong>Think critically:</strong> Make informed decisions based on multiple perspectives</li>
+                </ul>
+                
+                <p>This tool empowers users to become more media-literate and less susceptible to propaganda or misinformation by providing AI-assisted analysis while encouraging independent critical thinking.</p>
+            </div>
+            
+            <div class="info-section">
+                <h3>⚙️ How Does This Work?</h3>
+                <p><strong>Propagander</strong> uses advanced AI technology to analyze news content through a multi-step process:</p>
+                
+                <p><strong>1. Content Gathering:</strong></p>
+                <ul>
+                    <li>Search multiple news sources for your topic</li>
+                    <li>Or analyze a specific webpage you provide</li>
+                    <li>Extract clean text content from articles</li>
+                </ul>
+                
+                <p><strong>2. AI Analysis:</strong></p>
+                <ul>
+                    <li>Uses Phi-3 AI model running locally in your browser</li>
+                    <li>Analyzes political bias (left, center, right)</li>
+                    <li>Detects emotional tone (positive, negative, neutral)</li>
+                    <li>Extracts key dates, names, and events</li>
+                </ul>
+                
+                <p><strong>3. Results:</strong></p>
+                <ul>
+                    <li>Displays original articles with source links</li>
+                    <li>Provides detailed AI analysis with bias indicators</li>
+                    <li>Categorizes information for easy comparison</li>
+                </ul>
+                
+                <p><strong>Privacy:</strong> All processing happens in your browser - no data is sent to external servers.</p>
+            </div>
+        </div>
+        
+        <div class="footer">
+            <p>Created using love, prayer, caffeine, and a touch of autism by B.</p>
+        </div>
+    </div>
+
+    <script>
+        // Global variables
+        let phi3Engine = null;
+        let isInitialized = false;
+        let searchResults = [];
+
+        // Comprehensive JSON cleaning utility for AI responses
+        function cleanAndParseAiJson(rawText, fallbackObject = null) {
+            if (!rawText || typeof rawText !== 'string') {
+                console.warn('Invalid input for JSON cleaning:', rawText);
+                return fallbackObject;
+            }
+
+            try {
+                // First attempt: direct parsing (might already be clean JSON)
+                return JSON.parse(rawText.trim());
+            } catch (directError) {
+                console.log('Direct JSON parsing failed, attempting to clean...');
+            }
+
+            let cleanedText = rawText.trim();
+
+            // Remove common AI response prefixes and suffixes
+            const prefixPatterns = [
+                /^(Here's|Here is|Based on|The analysis is|Analysis|Result|Response|Looking at|I'll analyze|Let me analyze).*?[:\n]/i,
+                /^```(json)?\s*/i,  // Remove markdown code blocks
+                /^.*?(sure[,!]?\s*|certainly[,!]?\s*|of course[,!]?\s*)/i,  // Remove pleasantries
+            ];
+
+            const suffixPatterns = [
+                /```\s*$/i,  // Remove closing markdown
+                /\n\n.*$/s,  // Remove paragraphs after JSON
+                /\n\*.*$/s,  // Remove bullet points/notes
+                /\n(Note|Please|This|I hope|Let me know|Feel free).*$/si,  // Remove common trailing notes
+                /\n(The above|This analysis|This JSON|Hope this helps).*$/si,
+            ];
+
+            // Apply prefix cleaning
+            for (const pattern of prefixPatterns) {
+                cleanedText = cleanedText.replace(pattern, '');
+            }
+
+            // Apply suffix cleaning
+            for (const pattern of suffixPatterns) {
+                cleanedText = cleanedText.replace(pattern, '');
+            }
+
+            // Extract JSON using brace matching
+            const extractedJson = extractJsonByBraceMatching(cleanedText);
+            if (extractedJson) {
+                cleanedText = extractedJson;
+            }
+
+            // Final cleanup for common JSON issues
+            cleanedText = cleanedText
+                .replace(/,(\s*[}\]])/g, '$1')  // Remove trailing commas
+                .replace(/\\n/g, '\\\\n')  // Fix newline escaping
+                .replace(/\n\s+/g, ' ')  // Collapse whitespace
+                .replace(/([{,]\s*)(\w+)(\s*:)/g, '$1"$2"$3')  // Quote unquoted keys (basic attempt)
+                .trim();
+
+            // Try parsing the cleaned text
+            try {
+                const parsed = JSON.parse(cleanedText);
+                console.log('Successfully cleaned and parsed JSON');
+                return parsed;
+            } catch (cleanedError) {
+                console.warn('Failed to parse cleaned JSON:', cleanedError);
+                console.warn('Cleaned text was:', cleanedText);
+                
+                // Try more aggressive cleanup
+                const lastDitchAttempt = aggressiveJsonCleanup(cleanedText);
+                if (lastDitchAttempt) {
+                    try {
+                        const finalParsed = JSON.parse(lastDitchAttempt);
+                        console.log('Successfully parsed JSON after aggressive cleanup');
+                        return finalParsed;
+                    } catch (finalError) {
+                        console.warn('Even aggressive cleanup failed:', finalError);
+                    }
+                }
+
+                // Return fallback object if provided, otherwise return an error object
+                return fallbackObject || {
+                    parsing_error: true,
+                    original_text: rawText,
+                    cleaned_text: cleanedText,
+                    error_message: cleanedError.message
+                };
+            }
+        }
+
+        // Extract JSON by matching braces
+        function extractJsonByBraceMatching(text) {
+            let jsonStart = -1;
+            let jsonEnd = -1;
+            let braceCount = 0;
+            let inString = false;
+            let escapeNext = false;
+
+            for (let i = 0; i < text.length; i++) {
+                const char = text[i];
+                
+                if (jsonStart === -1 && char === '{') {
+                    jsonStart = i;
+                    braceCount = 1;
+                    continue;
+                }
+
+                if (jsonStart !== -1) {
+                    if (escapeNext) {
+                        escapeNext = false;
+                        continue;
+                    }
+
+                    if (char === '\\') {
+                        escapeNext = true;
+                        continue;
+                    }
+
+                    if (char === '"' && !escapeNext) {
+                        inString = !inString;
+                        continue;
+                    }
+
+                    if (!inString) {
+                        if (char === '{') {
+                            braceCount++;
+                        } else if (char === '}') {
+                            braceCount--;
+                            if (braceCount === 0) {
+                                jsonEnd = i;
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (jsonStart !== -1 && jsonEnd !== -1) {
+                return text.substring(jsonStart, jsonEnd + 1);
+            }
+
+            return null;
+        }
+
+        // Aggressive cleanup for malformed JSON
+        function aggressiveJsonCleanup(text) {
+            try {
+                // Fix common issues
+                let fixed = text
+                    .replace(/([{,]\s*)([a-zA-Z_][a-zA-Z0-9_]*)\s*:/g, '$1"$2":')  // Quote keys
+                    .replace(/:\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*([,}])/g, ':"$1"$2')  // Quote unquoted string values
+                    .replace(/,\s*}/g, '}')  // Remove trailing commas in objects
+                    .replace(/,\s*]/g, ']')  // Remove trailing commas in arrays
+                    .replace(/\}\s*\{/g, '},{')  // Fix missing commas between objects
+                    .replace(/\]\s*\[/g, '],[');  // Fix missing commas between arrays
+
+                return fixed;
+            } catch (error) {
+                console.warn('Aggressive cleanup failed:', error);
+                return null;
+            }
+        }
+
+        // List of proxy URLs to try for fetching web content
+        const proxies = [
+            'https://corsproxy.io/?',
+            'https://api.codetabs.com/v1/proxy?quest=',
+            'https://thingproxy.freeboard.io/fetch/',
+        ];
+
+        // Define search engines
+        const searchEngines = [
+            { name: 'duckduckgo', urlBase: 'https://html.duckduckgo.com/html/?q=' }
+        ];
+
+        // Initialize Phi-3 model
+        async function initializePhi3() {
+            try {
+                updateStatus('Initializing Phi-3 model... This may take a few minutes on first load.', 'loading');
+                updateProgress(10);
+                
+                // Wait for WebLLM to be available
+                let attempts = 0;
+                while (!window.webllm && attempts < 50) {
+                    await new Promise(resolve => setTimeout(resolve, 100));
+                    attempts++;
+                }
+                
+                if (!window.webllm) {
+                    throw new Error('WebLLM library failed to load. Please refresh the page and try again.');
+                }
+
+                updateStatus('WebLLM loaded successfully. Initializing model...', 'loading');
+                updateProgress(20);
+
+                const initProgressCallback = (report) => {
+                    console.log('Init progress:', report);
+                    const progress = Math.round((report.progress || 0) * 80) + 20; // 20-100%
+                    updateProgress(progress);
+                    updateStatus(`Loading model: ${progress}% - ${report.text || ''}`, 'loading');
+                };
+
+                phi3Engine = new window.webllm.MLCEngine();
+                
+                // Try different model names in case the exact one isn't available
+                const modelOptions = [
+                    "Phi-3-mini-4k-instruct-q4f16_1-MLC",
+                    "Phi-3-mini-4k-instruct-q4f32_1-MLC",
+                    "Llama-3-8B-Instruct-q4f32_1-MLC",
+                    "Llama-3-8B-Instruct-q4f16_1-MLC"
+                ];
+                
+                let modelLoaded = false;
+                for (const modelName of modelOptions) {
+                    try {
+                        updateStatus(`Trying to load ${modelName}...`, 'loading');
+                        await phi3Engine.reload(modelName, {
+                            initProgressCallback: initProgressCallback
+                        });
+                        updateStatus(`Successfully loaded ${modelName}!`, 'loading');
+                        modelLoaded = true;
+                        break;
+                    } catch (modelError) {
+                        console.warn(`Failed to load ${modelName}:`, modelError);
+                        continue;
+                    }
+                }
+                
+                if (!modelLoaded) {
+                    throw new Error('Failed to load any available models. Please check your internet connection and try again.');
+                }
+                
+                isInitialized = true;
+                updateProgress(100);
+                updateStatus('AI model initialized successfully! Ready to analyze news.', 'success');
+                
+            } catch (error) {
+                console.error('Failed to initialize Phi-3:', error);
+                updateStatus(`Failed to initialize AI model: ${error.message}`, 'error');
+                updateProgress(0);
+            }
+        }
+
+        // Update status display
+        function updateStatus(message, type) {
+            const statusEl = document.getElementById('status');
+            statusEl.textContent = message;
+            statusEl.className = `status ${type}`;
+            statusEl.style.display = 'block';
+        }
+
+        // Update progress bar
+        function updateProgress(percentage) {
+            const progressBar = document.getElementById('progressBar');
+            progressBar.style.width = `${percentage}%`;
+        }
+
+        // Initialize and search
+        async function initializeAndSearch() {
+            if (!isInitialized) {
+                await initializePhi3();
+            }
+            
+            if (isInitialized) {
+                await performSearch();
+            }
+        }
+
+        // Perform web search
+        async function performSearch() {
+            const query = document.getElementById('searchInput').value.trim();
+            if (!query) {
+                updateStatus('Please enter a search term', 'error');
+                return;
+            }
+
+            const searchBtn = document.getElementById('searchBtnText');
+            const searchSpinner = document.getElementById('searchSpinner');
+            
+            searchBtn.style.display = 'none';
+            searchSpinner.style.display = 'inline-block';
+            
+            try {
+                updateStatus('Searching for news articles...', 'loading');
+                updateProgress(20);
+
+                const results = await searchWeb(query);
+                searchResults = results;
+                
+                displaySearchResults(results);
+                updateProgress(60);
+                
+                if (results.length > 0) {
+                    updateStatus('Analyzing content with Phi-3...', 'loading');
+                    await analyzeResults(results, query);
+                    updateProgress(100);
+                    updateStatus('Analysis complete!', 'success');
+                } else {
+                    updateStatus('No results found. Try a different search term.', 'error');
+                }
+                
+            } catch (error) {
+                console.error('Search error:', error);
+                updateStatus(`Search failed: ${error.message}`, 'error');
+            } finally {
+                searchBtn.style.display = 'inline-block';
+                searchSpinner.style.display = 'none';
+                updateProgress(0);
+            }
+        }
+
+        // Search web using DuckDuckGo
+        async function searchWeb(query) {
+            const results = [];
+            const searchUrl = `${searchEngines[0].urlBase}${encodeURIComponent(query)}`;
+            
+            for (const proxy of proxies) {
+                try {
+                    const response = await fetch(proxy + encodeURIComponent(searchUrl));
+                    const html = await response.text();
+                    
+                    const parser = new DOMParser();
+                    const doc = parser.parseFromString(html, 'text/html');
+                    
+                    // Extract search results from DuckDuckGo HTML
+                    const resultElements = doc.querySelectorAll('.result');
+                    
+                    for (const element of resultElements) {
+                        const titleEl = element.querySelector('.result__title a');
+                        const snippetEl = element.querySelector('.result__snippet');
+                        const urlEl = element.querySelector('.result__url');
+                        
+                        if (titleEl && snippetEl) {
+                            let fullUrl = titleEl.href || (urlEl ? urlEl.textContent.trim() : '');
+                            
+                            // Clean up URL if it's a redirect
+                            if (fullUrl.includes('duckduckgo.com/l/?uddg=')) {
+                                try {
+                                    const urlParams = new URLSearchParams(fullUrl.split('?')[1]);
+                                    fullUrl = decodeURIComponent(urlParams.get('uddg') || fullUrl);
+                                } catch (e) {
+                                    console.warn('Failed to parse redirect URL:', fullUrl);
+                                }
+                            }
+                            
+                            results.push({
+                                title: titleEl.textContent.trim(),
+                                snippet: snippetEl.textContent.trim(),
+                                url: fullUrl,
+                                source: 'DuckDuckGo'
+                            });
+                        }
+                        
+                        const maxSources = parseInt(document.getElementById('sourceCount').value) || 5;
+                        if (results.length >= maxSources) break; // User-selected limit
+                    }
+                    
+                    if (results.length > 0) break; // Success with this proxy
+                    
+                } catch (error) {
+                    console.warn(`Proxy ${proxy} failed:`, error);
+                    continue;
+                }
+            }
+            
+            return results;
+        }
+
+        // Fetch full page content from URL
+        async function fetchFullPageContent(url) {
+            // Skip non-web URLs
+            if (!url || !url.startsWith('http')) {
+                return null;
+            }
+            
+            for (const proxy of proxies) {
+                try {
+                    updateStatus(`Fetching full content from: ${url.substring(0, 50)}...`, 'loading');
+                    
+                    const response = await fetch(proxy + encodeURIComponent(url), {
+                        timeout: 10000 // 10 second timeout
+                    });
+                    
+                    if (!response.ok) {
+                        console.warn(`Failed to fetch ${url}: ${response.status}`);
+                        continue;
+                    }
+                    
+                    const html = await response.text();
+                    
+                    // Parse HTML and extract text content
+                    const parser = new DOMParser();
+                    const doc = parser.parseFromString(html, 'text/html');
+                    
+                    // Remove script and style elements
+                    const scripts = doc.querySelectorAll('script, style, nav, footer, aside, .ads, .advertisement');
+                    scripts.forEach(el => el.remove());
+                    
+                    // Try to find main content areas
+                    let content = '';
+                    const contentSelectors = [
+                        'main',
+                        'article', 
+                        '.content',
+                        '.post-content',
+                        '.article-content',
+                        '.story-body',
+                        '.entry-content',
+                        '#content',
+                        '.article-body'
+                    ];
+                    
+                    // Try each content selector
+                    for (const selector of contentSelectors) {
+                        const contentEl = doc.querySelector(selector);
+                        if (contentEl) {
+                            content = contentEl.textContent || contentEl.innerText || '';
+                            break;
+                        }
+                    }
+                    
+                    // Fallback to body if no specific content area found
+                    if (!content || content.length < 100) {
+                        const bodyEl = doc.querySelector('body');
+                        if (bodyEl) {
+                            content = bodyEl.textContent || bodyEl.innerText || '';
+                        }
+                    }
+                    
+                    // Clean up content
+                    content = content
+                        .replace(/\s+/g, ' ') // Normalize whitespace
+                        .replace(/\n{3,}/g, '\n\n') // Remove excessive newlines
+                        .trim();
+                    
+                    if (content && content.length > 200) { // Minimum content threshold
+                        console.log(`Successfully fetched ${content.length} characters from ${url}`);
+                        return {
+                            url: url,
+                            content: content,
+                            title: doc.querySelector('title')?.textContent?.trim() || '',
+                            length: content.length
+                        };
+                    }
+                    
+                } catch (error) {
+                    console.warn(`Failed to fetch content from ${url} via ${proxy}:`, error);
+                    continue;
+                }
+            }
+            
+            return null;
+        }
+
+        // Display search results
+        function displaySearchResults(results) {
+            const container = document.getElementById('searchResults');
+            
+            if (results.length === 0) {
+                container.innerHTML = '<p style="color: #666;">No search results found.</p>';
+                return;
+            }
+            
+            container.innerHTML = results.map((result, index) => `
+                <div class="search-result">
+                    <h4>${escapeHtml(result.title)} <span style="font-size: 0.8em; color: #999;">[Source ${index + 1}]</span></h4>
+                    <p>${escapeHtml(result.snippet)}</p>
+                    ${result.url ? `<a href="${escapeHtml(result.url)}" target="_blank" rel="noopener">Read full article</a>` : ''}
+                    <div style="margin-top: 5px; font-size: 0.8em; color: #666;">
+                        <span id="contentStatus${index}">Preparing for full content analysis...</span>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // Update search result content status
+        function updateSearchResultStatus(index, status, contentLength = 0) {
+            const statusEl = document.getElementById(`contentStatus${index}`);
+            if (statusEl) {
+                if (contentLength > 0) {
+                    statusEl.innerHTML = `✅ Full content fetched: ${formatContentLength(contentLength)}`;
+                    statusEl.style.color = '#27ae60';
+                } else {
+                    statusEl.innerHTML = status;
+                    statusEl.style.color = '#e74c3c';
+                }
+            }
+        }
+
+        // Analyze results with Phi-3 - enhanced with full page content analysis
+        async function analyzeResults(results, originalQuery) {
+            if (!phi3Engine || !isInitialized) {
+                updateStatus('Phi-3 not initialized', 'error');
+                return;
+            }
+
+            try {
+                updateStatus('Fetching full page content and analyzing in chunks...', 'loading');
+                updateProgress(60);
+
+                let allAnalysisData = [];
+                const totalSources = results.length;
+                
+                // Analyze each source separately with full content
+                for (let i = 0; i < results.length; i++) {
+                    const result = results[i];
+                    updateStatus(`Processing source ${i + 1}/${totalSources}: ${result.title.substring(0, 50)}...`, 'loading');
+                    
+                    const sourceAnalysis = {
+                        sourceTitle: result.title,
+                        sourceUrl: result.url,
+                        chunks: [],
+                        contentLength: 0,
+                        fetchSuccess: false
+                    };
+                    
+                    // Try to fetch full page content
+                    let contentToAnalyze = result.snippet; // Fallback to snippet
+                    let fullPageData = null;
+                    
+                    if (result.url && result.url.startsWith('http')) {
+                        try {
+                            fullPageData = await fetchFullPageContent(result.url);
+                            if (fullPageData && fullPageData.content) {
+                                contentToAnalyze = fullPageData.content;
+                                sourceAnalysis.contentLength = fullPageData.length;
+                                sourceAnalysis.fetchSuccess = true;
+                                updateStatus(`Fetched ${fullPageData.length} characters from source ${i + 1}`, 'loading');
+                                updateSearchResultStatus(i, '', fullPageData.length);
+                            } else {
+                                updateSearchResultStatus(i, '⚠️ Using snippet only - full content unavailable');
+                            }
+                        } catch (fetchError) {
+                            console.warn(`Failed to fetch full content for ${result.url}:`, fetchError);
+                            updateStatus(`Using snippet for source ${i + 1} (full content unavailable)`, 'loading');
+                            updateSearchResultStatus(i, '⚠️ Using snippet only - fetch failed');
+                        }
+                    } else {
+                        updateSearchResultStatus(i, '⚠️ Using snippet only - invalid URL');
+                    }
+                    
+                    // Prepare content with context
+                    const sourceContent = `Title: ${result.title}\nURL: ${result.url}\nContent: ${contentToAnalyze}`;
+                    
+                    // Use intelligent chunking based on content size
+                    const maxChunkSize = sourceAnalysis.fetchSuccess ? 8000 : 4000; // Larger chunks for full content
+                    const chunks = intelligentChunkText(sourceContent, maxChunkSize);
+                    
+                    updateStatus(`Analyzing ${chunks.length} chunks for source ${i + 1}/${totalSources}...`, 'loading');
+                    
+                    // Analyze each chunk
+                    for (let j = 0; j < chunks.length; j++) {
+                        updateStatus(`Analyzing source ${i + 1}/${totalSources}, chunk ${j + 1}/${chunks.length}...`, 'loading');
+                        
+                        const chunkData = await analyzeChunk(chunks[j], originalQuery, i + 1, j + 1, sourceAnalysis.fetchSuccess);
+                        if (chunkData) {
+                            sourceAnalysis.chunks.push(chunkData);
+                        }
+                        
+                        // Small delay to prevent overwhelming the model
+                        await new Promise(resolve => setTimeout(resolve, 150));
+                    }
+                    
+                    allAnalysisData.push(sourceAnalysis);
+                    
+                    // Update progress
+                    const progress = 60 + ((i + 1) / totalSources) * 35;
+                    updateProgress(progress);
+                }
+                
+                // Create final summary from all chunk data
+                updateStatus('Creating comprehensive summary from all chunks...', 'loading');
+                const finalSummary = await createFinalSummary(allAnalysisData, originalQuery);
+                
+                displayChunkedAnalysis(allAnalysisData, finalSummary, originalQuery);
+                updateProgress(100);
+                updateStatus('Comprehensive chunked analysis complete!', 'success');
+                
+            } catch (error) {
+                console.error('Analysis error:', error);
+                updateStatus(`Analysis failed: ${error.message}`, 'error');
+            }
+        }
+
+        // Split text into chunks of specified size
+        function chunkText(text, maxChunkSize) {
+            if (text.length <= maxChunkSize) {
+                return [text];
+            }
+            
+            const chunks = [];
+            let currentPos = 0;
+            
+            while (currentPos < text.length) {
+                let endPos = currentPos + maxChunkSize;
+                
+                // Try to break at word boundaries
+                if (endPos < text.length) {
+                    const lastSpace = text.lastIndexOf(' ', endPos);
+                    const lastPeriod = text.lastIndexOf('.', endPos);
+                    const lastNewline = text.lastIndexOf('\n', endPos);
+                    
+                    const breakPoint = Math.max(lastSpace, lastPeriod, lastNewline);
+                    if (breakPoint > currentPos + maxChunkSize * 0.7) {
+                        endPos = breakPoint + 1;
+                    }
+                }
+                
+                chunks.push(text.substring(currentPos, endPos).trim());
+                currentPos = endPos;
+            }
+            
+            return chunks.filter(chunk => chunk.length > 0);
+        }
+
+        // Intelligent chunking that preserves context and structure
+        function intelligentChunkText(text, maxChunkSize) {
+            if (text.length <= maxChunkSize) {
+                return [text];
+            }
+            
+            const chunks = [];
+            let currentPos = 0;
+            
+            // Split by major sections first (double newlines, paragraphs)
+            const sections = text.split(/\n\n+/);
+            let currentChunk = '';
+            
+            for (const section of sections) {
+                const sectionWithNewlines = section.trim();
+                
+                // If adding this section would exceed the chunk size
+                if (currentChunk.length + sectionWithNewlines.length + 2 > maxChunkSize) {
+                    // Save current chunk if it has content
+                    if (currentChunk.trim().length > 0) {
+                        chunks.push(currentChunk.trim());
+                    }
+                    
+                    // If the section itself is too large, split it further
+                    if (sectionWithNewlines.length > maxChunkSize) {
+                        const subChunks = splitLargeSection(sectionWithNewlines, maxChunkSize);
+                        chunks.push(...subChunks);
+                        currentChunk = '';
+                    } else {
+                        currentChunk = sectionWithNewlines;
+                    }
+                } else {
+                    // Add section to current chunk
+                    if (currentChunk.length > 0) {
+                        currentChunk += '\n\n' + sectionWithNewlines;
+                    } else {
+                        currentChunk = sectionWithNewlines;
+                    }
+                }
+            }
+            
+            // Add any remaining content
+            if (currentChunk.trim().length > 0) {
+                chunks.push(currentChunk.trim());
+            }
+            
+            return chunks.filter(chunk => chunk.length > 50); // Filter out very short chunks
+        }
+
+        // Split large sections that don't fit in a single chunk
+        function splitLargeSection(text, maxChunkSize) {
+            const chunks = [];
+            let currentPos = 0;
+            
+            while (currentPos < text.length) {
+                let endPos = currentPos + maxChunkSize;
+                
+                if (endPos >= text.length) {
+                    chunks.push(text.substring(currentPos).trim());
+                    break;
+                }
+                
+                // Try to break at sentence boundaries first
+                const sentenceEnd = text.lastIndexOf('.', endPos);
+                const questionEnd = text.lastIndexOf('?', endPos);
+                const exclamationEnd = text.lastIndexOf('!', endPos);
+                
+                let bestBreak = Math.max(sentenceEnd, questionEnd, exclamationEnd);
+                
+                // If no sentence boundary found, try paragraph or line breaks
+                if (bestBreak <= currentPos + maxChunkSize * 0.5) {
+                    const paragraphBreak = text.lastIndexOf('\n', endPos);
+                    const spaceBreak = text.lastIndexOf(' ', endPos);
+                    bestBreak = Math.max(paragraphBreak, spaceBreak);
+                }
+                
+                // If still no good break point, use the original position
+                if (bestBreak <= currentPos + maxChunkSize * 0.3) {
+                    bestBreak = endPos;
+                }
+                
+                chunks.push(text.substring(currentPos, bestBreak + 1).trim());
+                currentPos = bestBreak + 1;
+            }
+            
+            return chunks.filter(chunk => chunk.length > 0);
+        }
+
+        // Clean and extract JSON from AI response that may contain extra text
+        function cleanJsonFromAiResponse(rawText) {
+            // Use the comprehensive JSON cleaning utility
+            const fallbackStructure = {
+                source_info: { source_number: 0, chunk_number: 0, content_type: "unknown", chunk_size: 0 },
+                dates: [],
+                people: [],
+                organizations: [],
+                places: [],
+                events: [],
+                political_figures: [],
+                political_bias_indicators: [],
+                overall_tone: "neutral",
+                key_topics: [],
+                quotes: [],
+                statistics: [],
+                sources_cited: [],
+                economic_indicators: [],
+                policy_details: []
+            };
+
+            const result = cleanAndParseAiJson(rawText, fallbackStructure);
+            
+            // If it's a parsed object, return it as-is
+            if (typeof result === 'object' && !result.parsing_error) {
+                return JSON.stringify(result);
+            }
+            
+            // If parsing failed, return the fallback structure but preserve error info
+            if (result.parsing_error) {
+                console.warn('JSON cleaning failed, using fallback structure');
+                return JSON.stringify({
+                    ...fallbackStructure,
+                    parsing_error: true,
+                    error_details: result
+                });
+            }
+
+            return JSON.stringify(result);
+        }
+
+        // Analyze a single chunk and return JSON data
+        async function analyzeChunk(chunkContent, originalQuery, sourceNum, chunkNum, isFullContent = false) {
+            try {
+                const contentType = isFullContent ? "full page content" : "search snippet";
+                const prompt = `Analyze this news ${contentType} chunk about "${originalQuery}". Extract ONLY explicitly mentioned information and return it as valid JSON.
+
+Content chunk (${contentType}):
+${chunkContent}
+
+IMPORTANT: Return ONLY the JSON object with no additional text, explanations, or notes. Extract information that is explicitly stated in the text. Use this EXACT format (omit fields if not found):
+{
+  "source_info": {
+    "source_number": ${sourceNum},
+    "chunk_number": ${chunkNum},
+    "content_type": "${contentType}",
+    "chunk_size": ${chunkContent.length}
+  },
+  "dates": ["YYYY-MM-DD format or specific dates mentioned"],
+  "people": ["Full names of individuals mentioned"],
+  "organizations": ["Names of companies, agencies, institutions"],
+  "places": ["Geographic locations, cities, countries, states"],
+  "events": ["Specific events, incidents, or occurrences described"],
+  "political_figures": [
+    {
+      "name": "Full name of political figure",
+      "tone": "positive/negative/neutral",
+      "context": "Brief context of how they are mentioned",
+      "role": "Their position or role if mentioned"
+    }
+  ],
+  "political_bias_indicators": ["Specific biased language, loaded terms, or partisan phrases"],
+  "overall_tone": "positive/negative/neutral",
+  "key_topics": ["Main subjects, themes, or issues discussed"],
+  "quotes": ["Direct quotes with attribution if possible"],
+  "statistics": ["Numbers, percentages, or data points mentioned"],
+  "sources_cited": ["Other sources or publications mentioned"],
+  "economic_indicators": ["Financial data, market info, economic metrics"],
+  "policy_details": ["Specific policies, laws, or regulations mentioned"]
+}`;
+
+                const response = await phi3Engine.chat.completions.create({
+                    messages: [{ role: "user", content: prompt }],
+                    temperature: 0.1,
+                    max_tokens: 800,
+                });
+
+                const rawResponse = response.choices[0].message.content.trim();
+                
+                // Clean the AI response to extract pure JSON
+                const cleanedJson = cleanJsonFromAiResponse(rawResponse);
+                
+                // Try to parse the cleaned JSON
+                try {
+                    const parsedData = JSON.parse(cleanedJson);
+                    console.log(`Successfully parsed JSON for chunk ${sourceNum}-${chunkNum}:`, parsedData);
+                    return parsedData;
+                    
+                } catch (parseError) {
+                    console.warn(`Failed to parse cleaned JSON for chunk ${sourceNum}-${chunkNum}:`, parseError);
+                    console.warn('Cleaned JSON text:', cleanedJson);
+                    console.warn('Original raw response:', rawResponse);
+                    
+                    // Try one more aggressive cleanup attempt
+                    try {
+                        // Extract just the content between the first { and last }
+                        const match = cleanedJson.match(/\{[\s\S]*\}/);
+                        if (match) {
+                            const finalAttempt = match[0];
+                            const lastAttemptParsed = JSON.parse(finalAttempt);
+                            console.log(`JSON parsing succeeded on final attempt for chunk ${sourceNum}-${chunkNum}`);
+                            return lastAttemptParsed;
+                        }
+                    } catch (finalError) {
+                        console.warn('Final parsing attempt also failed:', finalError);
+                    }
+                    
+                    // Return a basic structure if all JSON parsing attempts fail
+                    return {
+                        source_info: { source_number: sourceNum, chunk_number: chunkNum },
+                        parsing_error: true,
+                        raw_content: rawResponse,
+                        cleaned_content: cleanedJson,
+                        error_message: parseError.message
+                    };
+                }
+                
+            } catch (error) {
+                console.error(`Error analyzing chunk ${sourceNum}-${chunkNum}:`, error);
+                return null;
+            }
+        }
+
+        // Create final summary from all chunk data
+        async function createFinalSummary(allAnalysisData, originalQuery) {
+            try {
+                // Aggregate all data from chunks
+                const aggregatedData = {
+                    dates: new Set(),
+                    people: new Set(),
+                    organizations: new Set(),
+                    places: new Set(),
+                    events: new Set(),
+                    political_figures: new Map(),
+                    political_bias_indicators: new Set(),
+                    key_topics: new Set(),
+                    quotes: new Set(),
+                    statistics: new Set(),
+                    sources_cited: new Set(),
+                    economic_indicators: new Set(),
+                    policy_details: new Set(),
+                    tone_counts: { positive: 0, negative: 0, neutral: 0 }
+                };
+
+                // Process all chunks
+                allAnalysisData.forEach(sourceAnalysis => {
+                    sourceAnalysis.chunks.forEach(chunkData => {
+                        if (chunkData.parsing_error) return;
+                        
+                        // Aggregate arrays
+                        if (chunkData.dates) chunkData.dates.forEach(d => aggregatedData.dates.add(d));
+                        if (chunkData.people) chunkData.people.forEach(p => aggregatedData.people.add(p));
+                        if (chunkData.organizations) chunkData.organizations.forEach(o => aggregatedData.organizations.add(o));
+                        if (chunkData.places) chunkData.places.forEach(pl => aggregatedData.places.add(pl));
+                        if (chunkData.events) chunkData.events.forEach(e => aggregatedData.events.add(e));
+                        if (chunkData.key_topics) chunkData.key_topics.forEach(t => aggregatedData.key_topics.add(t));
+                        if (chunkData.quotes) chunkData.quotes.forEach(q => aggregatedData.quotes.add(q));
+                        if (chunkData.political_bias_indicators) chunkData.political_bias_indicators.forEach(b => aggregatedData.political_bias_indicators.add(b));
+                        if (chunkData.statistics) chunkData.statistics.forEach(s => aggregatedData.statistics.add(s));
+                        if (chunkData.sources_cited) chunkData.sources_cited.forEach(sc => aggregatedData.sources_cited.add(sc));
+                        if (chunkData.economic_indicators) chunkData.economic_indicators.forEach(ei => aggregatedData.economic_indicators.add(ei));
+                        if (chunkData.policy_details) chunkData.policy_details.forEach(pd => aggregatedData.policy_details.add(pd));
+                        
+                        // Aggregate political figures
+                        if (chunkData.political_figures) {
+                            chunkData.political_figures.forEach(figure => {
+                                const existing = aggregatedData.political_figures.get(figure.name) || {
+                                    name: figure.name,
+                                    tones: [],
+                                    contexts: [],
+                                    roles: []
+                                };
+                                existing.tones.push(figure.tone);
+                                existing.contexts.push(figure.context);
+                                if (figure.role) existing.roles.push(figure.role);
+                                aggregatedData.political_figures.set(figure.name, existing);
+                            });
+                        }
+                        
+                        // Count tones
+                        if (chunkData.overall_tone) {
+                            aggregatedData.tone_counts[chunkData.overall_tone] = 
+                                (aggregatedData.tone_counts[chunkData.overall_tone] || 0) + 1;
+                        }
+                    });
+                });
+
+                // Determine overall tone
+                const toneEntries = Object.entries(aggregatedData.tone_counts);
+                const dominantTone = toneEntries.reduce((a, b) => a[1] > b[1] ? a : b)[0];
+
+                // Calculate content analysis stats
+                const totalContentLength = allAnalysisData.reduce((sum, source) => sum + source.contentLength, 0);
+                const successfulFetches = allAnalysisData.filter(source => source.fetchSuccess).length;
+                
+                // Create summary
+                return {
+                    query: originalQuery,
+                    total_sources: allAnalysisData.length,
+                    total_chunks: allAnalysisData.reduce((sum, source) => sum + source.chunks.length, 0),
+                    total_content_length: totalContentLength,
+                    successful_full_fetches: successfulFetches,
+                    summary: {
+                        dates: Array.from(aggregatedData.dates).sort(),
+                        people: Array.from(aggregatedData.people).sort(),
+                        organizations: Array.from(aggregatedData.organizations).sort(),
+                        places: Array.from(aggregatedData.places).sort(),
+                        events: Array.from(aggregatedData.events),
+                        key_topics: Array.from(aggregatedData.key_topics),
+                        political_figures: Array.from(aggregatedData.political_figures.values()).map(figure => ({
+                            name: figure.name,
+                            dominant_tone: getMostFrequent(figure.tones),
+                            tone_distribution: getTonesDistribution(figure.tones),
+                            contexts: figure.contexts,
+                            roles: [...new Set(figure.roles)].filter(r => r && r.trim())
+                        })),
+                        overall_tone: dominantTone,
+                        tone_distribution: aggregatedData.tone_counts,
+                        political_bias_indicators: Array.from(aggregatedData.political_bias_indicators),
+                        notable_quotes: Array.from(aggregatedData.quotes).slice(0, 8), // More quotes from full content
+                        statistics: Array.from(aggregatedData.statistics).slice(0, 10),
+                        sources_cited: Array.from(aggregatedData.sources_cited).slice(0, 8),
+                        economic_indicators: Array.from(aggregatedData.economic_indicators).slice(0, 6),
+                        policy_details: Array.from(aggregatedData.policy_details).slice(0, 8)
+                    }
+                };
+                
+            } catch (error) {
+                console.error('Error creating final summary:', error);
+                return { error: error.message };
+            }
+        }
+
+        // Helper function to get most frequent item
+        function getMostFrequent(arr) {
+            if (!arr || arr.length === 0) return 'unknown';
+            const counts = {};
+            arr.forEach(item => counts[item] = (counts[item] || 0) + 1);
+            return Object.entries(counts).reduce((a, b) => a[1] > b[1] ? a : b)[0];
+        }
+
+        // Helper function to get tone distribution
+        function getTonesDistribution(tones) {
+            const counts = { positive: 0, negative: 0, neutral: 0 };
+            tones.forEach(tone => counts[tone] = (counts[tone] || 0) + 1);
+            return counts;
+        }
+
+        // Display chunked analysis results
+        function displayChunkedAnalysis(allAnalysisData, finalSummary, query) {
+            const container = document.getElementById('analysisResults');
+            
+            let html = `<div class="analysis-item">
+                <h4>📊 Comprehensive Analysis Summary for: "${escapeHtml(query)}"</h4>
+                <div style="margin-top: 10px;">
+                    <p><strong>Sources Analyzed:</strong> ${finalSummary.total_sources} | <strong>Total Chunks:</strong> ${finalSummary.total_chunks}</p>
+                    <p><strong>Full Content Fetched:</strong> ${finalSummary.successful_full_fetches}/${finalSummary.total_sources} sources | <strong>Total Content:</strong> ${formatContentLength(finalSummary.total_content_length)}</p>
+                </div>
+            </div>`;
+
+            // Display aggregated summary
+            if (finalSummary && finalSummary.summary) {
+                const summary = finalSummary.summary;
+                
+                if (summary.dates && summary.dates.length > 0) {
+                    html += `<div class="analysis-item">
+                        <h4>📅 Dates Found</h4>
+                        ${summary.dates.map(date => `<span class="category">${escapeHtml(date)}</span>`).join(' ')}
+                    </div>`;
+                }
+                
+                if (summary.people && summary.people.length > 0) {
+                    html += `<div class="analysis-item">
+                        <h4>👥 People Mentioned</h4>
+                        ${summary.people.map(person => `<span class="category">${escapeHtml(person)}</span>`).join(' ')}
+                    </div>`;
+                }
+                
+                if (summary.organizations && summary.organizations.length > 0) {
+                    html += `<div class="analysis-item">
+                        <h4>🏢 Organizations</h4>
+                        ${summary.organizations.map(org => `<span class="category">${escapeHtml(org)}</span>`).join(' ')}
+                    </div>`;
+                }
+                
+                if (summary.places && summary.places.length > 0) {
+                    html += `<div class="analysis-item">
+                        <h4>📍 Places</h4>
+                        ${summary.places.map(place => `<span class="category">${escapeHtml(place)}</span>`).join(' ')}
+                    </div>`;
+                }
+                
+                if (summary.events && summary.events.length > 0) {
+                    html += `<div class="analysis-item">
+                        <h4>📰 Events</h4>
+                        ${summary.events.map(event => `<div style="margin: 5px 0; color: #555;">• ${escapeHtml(event)}</div>`).join('')}
+                    </div>`;
+                }
+                
+                if (summary.political_figures && summary.political_figures.length > 0) {
+                    html += `<div class="analysis-item">
+                        <h4>🎭 Political Figures & Tones</h4>
+                        ${summary.political_figures.map(figure => {
+                            const toneClass = getToneClass(figure.dominant_tone);
+                            const distribution = Object.entries(figure.tone_distribution)
+                                .filter(([_, count]) => count > 0)
+                                .map(([tone, count]) => `${tone}: ${count}`)
+                                .join(', ');
+                            return `<div style="margin: 8px 0; padding: 8px; background: #f8f9fa; border-radius: 5px;">
+                                <strong>${escapeHtml(figure.name)}:</strong> 
+                                <span class="tone-indicator ${toneClass}">${escapeHtml(figure.dominant_tone)}</span>
+                                ${figure.roles && figure.roles.length > 0 ? `<br><small style="color: #555;">Role(s): ${figure.roles.join(', ')}</small>` : ''}
+                                <br><small style="color: #666;">Tone Distribution: ${distribution}</small>
+                            </div>`;
+                        }).join('')}
+                    </div>`;
+                }
+                
+                if (summary.key_topics && summary.key_topics.length > 0) {
+                    html += `<div class="analysis-item">
+                        <h4>🔑 Key Topics</h4>
+                        ${summary.key_topics.map(topic => `<span class="category">${escapeHtml(topic)}</span>`).join(' ')}
+                    </div>`;
+                }
+                
+                if (summary.overall_tone && summary.overall_tone !== 'neutral') {
+                    const toneClass = getToneClass(summary.overall_tone);
+                    const distribution = Object.entries(summary.tone_distribution)
+                        .map(([tone, count]) => `${tone}: ${count}`)
+                        .join(', ');
+                    html += `<div class="analysis-item">
+                        <h4>🎯 Overall Tone</h4>
+                        <span class="tone-indicator ${toneClass}">${escapeHtml(summary.overall_tone)}</span>
+                        <br><small style="color: #666;">Distribution across chunks: ${distribution}</small>
+                    </div>`;
+                }
+                
+                if (summary.political_bias_indicators && summary.political_bias_indicators.length > 0) {
+                    html += `<div class="analysis-item">
+                        <h4>⚖️ Political Bias Indicators</h4>
+                        ${summary.political_bias_indicators.map(indicator => 
+                            `<div style="margin: 3px 0; color: #666;">• "${escapeHtml(indicator)}"</div>`
+                        ).join('')}
+                    </div>`;
+                }
+                
+                if (summary.notable_quotes && summary.notable_quotes.length > 0) {
+                    html += `<div class="analysis-item">
+                        <h4>💬 Notable Quotes</h4>
+                        ${summary.notable_quotes.map(quote => 
+                            `<div style="margin: 5px 0; padding: 5px; background: #f0f0f0; border-left: 3px solid #667eea; font-style: italic;">"${escapeHtml(quote)}"</div>`
+                        ).join('')}
+                    </div>`;
+                }
+                
+                if (summary.statistics && summary.statistics.length > 0) {
+                    html += `<div class="analysis-item">
+                        <h4>📈 Statistics & Data Points</h4>
+                        ${summary.statistics.map(stat => `<span class="category">${escapeHtml(stat)}</span>`).join(' ')}
+                    </div>`;
+                }
+                
+                if (summary.economic_indicators && summary.economic_indicators.length > 0) {
+                    html += `<div class="analysis-item">
+                        <h4>💰 Economic Indicators</h4>
+                        ${summary.economic_indicators.map(indicator => 
+                            `<div style="margin: 3px 0; color: #666;">• ${escapeHtml(indicator)}</div>`
+                        ).join('')}
+                    </div>`;
+                }
+                
+                if (summary.policy_details && summary.policy_details.length > 0) {
+                    html += `<div class="analysis-item">
+                        <h4>📋 Policy Details</h4>
+                        ${summary.policy_details.map(policy => 
+                            `<div style="margin: 3px 0; color: #666;">• ${escapeHtml(policy)}</div>`
+                        ).join('')}
+                    </div>`;
+                }
+                
+                if (summary.sources_cited && summary.sources_cited.length > 0) {
+                    html += `<div class="analysis-item">
+                        <h4>📚 Sources Cited</h4>
+                        ${summary.sources_cited.map(source => `<span class="category">${escapeHtml(source)}</span>`).join(' ')}
+                    </div>`;
+                }
+            }
+
+            // Show detailed chunk analysis (collapsible)
+            html += `<div class="analysis-item">
+                <h4 style="cursor: pointer;" onclick="toggleChunkDetails()">
+                    🔍 Detailed Chunk Analysis 
+                    <span id="chunkToggle" style="font-size: 0.8em;">[Show]</span>
+                </h4>
+                <div id="chunkDetails" style="display: none; margin-top: 10px;">`;
+            
+            allAnalysisData.forEach((sourceAnalysis, sourceIndex) => {
+                const contentStatus = sourceAnalysis.fetchSuccess ? 
+                    `✅ Full content (${formatContentLength(sourceAnalysis.contentLength)})` : 
+                    '⚠️ Snippet only';
+                html += `<div style="margin-bottom: 15px; border: 1px solid #ddd; border-radius: 5px; padding: 10px;">
+                    <h5 style="color: #333; margin-bottom: 10px;">
+                        Source ${sourceIndex + 1}: ${escapeHtml(sourceAnalysis.sourceTitle)}
+                        <br><small style="color: #666; font-weight: normal;">${contentStatus} | ${sourceAnalysis.chunks.length} chunks</small>
+                    </h5>`;
+                
+                sourceAnalysis.chunks.forEach((chunkData, chunkIndex) => {
+                    if (chunkData.parsing_error) {
+                        html += `<div style="background: #ffe6e6; padding: 8px; margin: 5px 0; border-radius: 3px;">
+                            <strong>Chunk ${chunkIndex + 1}:</strong> Parsing error
+                            <details style="margin-top: 5px;">
+                                <summary>Raw content</summary>
+                                <pre style="font-size: 0.8em; white-space: pre-wrap;">${escapeHtml(chunkData.raw_content)}</pre>
+                            </details>
+                        </div>`;
+                    } else {
+                        html += `<div style="background: #f8f9fa; padding: 8px; margin: 5px 0; border-radius: 3px;">
+                            <strong>Chunk ${chunkIndex + 1}:</strong>
+                            <details style="margin-top: 5px;">
+                                <summary>JSON Data</summary>
+                                <pre style="font-size: 0.8em; white-space: pre-wrap; color: #333;">${JSON.stringify(chunkData, null, 2)}</pre>
+                            </details>
+                        </div>`;
+                    }
+                });
+                
+                html += '</div>';
+            });
+            
+            html += '</div></div>';
+
+            // Final JSON summary (collapsible)
+            html += `<div class="analysis-item">
+                <h4 style="cursor: pointer;" onclick="toggleJsonSummary()">
+                    📋 Complete JSON Summary 
+                    <span id="jsonToggle" style="font-size: 0.8em;">[Show]</span>
+                </h4>
+                <div id="jsonSummary" style="display: none; margin-top: 10px;">
+                    <pre style="background: #f8f9fa; padding: 15px; border-radius: 5px; overflow-x: auto; font-size: 0.85em;">${JSON.stringify(finalSummary, null, 2)}</pre>
+                </div>
+            </div>`;
+            
+            container.innerHTML = html;
+        }
+
+        // Toggle functions for collapsible sections
+        function toggleChunkDetails() {
+            const details = document.getElementById('chunkDetails');
+            const toggle = document.getElementById('chunkToggle');
+            if (details.style.display === 'none') {
+                details.style.display = 'block';
+                toggle.textContent = '[Hide]';
+            } else {
+                details.style.display = 'none';
+                toggle.textContent = '[Show]';
+            }
+        }
+
+        function toggleJsonSummary() {
+            const summary = document.getElementById('jsonSummary');
+            const toggle = document.getElementById('jsonToggle');
+            if (summary.style.display === 'none') {
+                summary.style.display = 'block';
+                toggle.textContent = '[Hide]';
+            } else {
+                summary.style.display = 'none';
+                toggle.textContent = '[Show]';
+            }
+        }
+
+        // Parse analysis text into structured data
+        function parseAnalysis(text) {
+            const sections = {
+                dates: [],
+                people: [],
+                organizations: [],
+                places: [],
+                bias: '',
+                tone: '',
+                politicalTones: []
+            };
+            
+            // Simple parsing - could be enhanced
+            const lines = text.split('\n');
+            let currentSection = '';
+            
+            for (const line of lines) {
+                const trimmed = line.trim();
+                
+                if (trimmed.includes('**DATES:**')) {
+                    currentSection = 'dates';
+                } else if (trimmed.includes('People:')) {
+                    currentSection = 'people';
+                } else if (trimmed.includes('Organizations:')) {
+                    currentSection = 'organizations';
+                } else if (trimmed.includes('Places:')) {
+                    currentSection = 'places';
+                } else if (trimmed.includes('**POLITICAL BIAS:**')) {
+                    currentSection = 'bias';
+                    const biasMatch = trimmed.match(/\*\*POLITICAL BIAS:\*\*\s*(.+)/);
+                    if (biasMatch) sections.bias = biasMatch[1];
+                } else if (trimmed.includes('**OVERALL TONE:**')) {
+                    currentSection = 'tone';
+                    const toneMatch = trimmed.match(/\*\*OVERALL TONE:\*\*\s*(.+)/);
+                    if (toneMatch) sections.tone = toneMatch[1];
+                } else if (trimmed.includes('**POLITICAL FIGURE TONES:**')) {
+                    currentSection = 'politicalTones';
+                } else if (trimmed.startsWith('- ')) {
+                    const item = trimmed.substring(2);
+                    if (currentSection === 'dates') sections.dates.push(item);
+                    else if (currentSection === 'people') sections.people.push(item);
+                    else if (currentSection === 'organizations') sections.organizations.push(item);
+                    else if (currentSection === 'places') sections.places.push(item);
+                    else if (currentSection === 'politicalTones') {
+                        const ptMatch = item.match(/(.+?):\s*(\w+)(?:\s*-\s*(.+))?/);
+                        if (ptMatch) {
+                            sections.politicalTones.push({
+                                figure: ptMatch[1],
+                                tone: ptMatch[2],
+                                explanation: ptMatch[3] || ''
+                            });
+                        }
+                    }
+                }
+            }
+            
+            return sections;
+        }
+
+        // Get CSS class for bias indicator
+        function getBiasClass(bias) {
+            const lowerBias = bias.toLowerCase();
+            if (lowerBias.includes('left')) return 'bias-left';
+            if (lowerBias.includes('right')) return 'bias-right';
+            if (lowerBias.includes('center')) return 'bias-center';
+            return 'bias-unknown';
+        }
+
+        // Get CSS class for tone indicator
+        function getToneClass(tone) {
+            const lowerTone = tone.toLowerCase();
+            if (lowerTone.includes('positive')) return 'tone-positive';
+            if (lowerTone.includes('negative')) return 'tone-negative';
+            return 'tone-neutral';
+        }
+
+        // Escape HTML to prevent XSS
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // Format content length for display
+        function formatContentLength(length) {
+            if (length < 1000) return `${length} chars`;
+            if (length < 1000000) return `${Math.round(length / 1000)}K chars`;
+            return `${Math.round(length / 100000) / 10}M chars`;
+        }
+
+        // Public utility function for manual JSON cleaning
+        // Usage: const cleanedJson = window.cleanJsonResponse(rawAiResponse);
+        window.cleanJsonResponse = function(rawText, customFallback = null) {
+            console.log('Manual JSON cleaning requested for:', rawText);
+            
+            const result = cleanAndParseAiJson(rawText, customFallback);
+            
+            if (typeof result === 'object') {
+                if (result.parsing_error) {
+                    console.warn('JSON cleaning failed:', result);
+                    return {
+                        success: false,
+                        error: result.error_message,
+                        originalText: result.original_text,
+                        cleanedText: result.cleaned_text,
+                        fallback: customFallback
+                    };
+                } else {
+                    console.log('JSON cleaning successful:', result);
+                    return {
+                        success: true,
+                        data: result,
+                        originalText: rawText
+                    };
+                }
+            }
+            
+            return {
+                success: true,
+                data: result,
+                originalText: rawText
+            };
+        };
+
+        // Toggle between search modes
+        function toggleSearchMode() {
+            const searchMode = document.querySelector('input[name="searchMode"]:checked').value;
+            const searchContainer = document.getElementById('searchContainer');
+            const webpageContainer = document.getElementById('webpageContainer');
+            
+            if (searchMode === 'search') {
+                searchContainer.style.display = 'flex';
+                webpageContainer.style.display = 'none';
+            } else {
+                searchContainer.style.display = 'none';
+                webpageContainer.style.display = 'flex';
+            }
+        }
+
+        // Chunk text into segments of specified size
+        function chunkText(text, maxChunkSize = 2000) {
+            const chunks = [];
+            const sentences = text.split(/[.!?]+/).filter(s => s.trim().length > 0);
+            let currentChunk = '';
+            
+            for (const sentence of sentences) {
+                const trimmedSentence = sentence.trim();
+                if (!trimmedSentence) continue;
+                
+                // If adding this sentence would exceed the limit, save current chunk and start new one
+                if (currentChunk.length + trimmedSentence.length + 1 > maxChunkSize) {
+                    if (currentChunk.trim()) {
+                        chunks.push(currentChunk.trim());
+                    }
+                    currentChunk = trimmedSentence;
+                } else {
+                    currentChunk += (currentChunk ? '. ' : '') + trimmedSentence;
+                }
+            }
+            
+            // Add the last chunk if it has content
+            if (currentChunk.trim()) {
+                chunks.push(currentChunk.trim());
+            }
+            
+            return chunks.length > 0 ? chunks : [text.substring(0, maxChunkSize)];
+        }
+
+        // Analyze webpage content in chunks
+        async function analyzeWebpageChunks(content, title, url) {
+            const chunks = chunkText(content, 2000);
+            const analyses = [];
+            
+            updateStatus(`Analyzing webpage content in ${chunks.length} segments...`, 'loading');
+            
+            for (let i = 0; i < chunks.length; i++) {
+                updateProgress(60 + (i / chunks.length) * 35);
+                updateStatus(`Analyzing segment ${i + 1} of ${chunks.length}...`, 'loading');
+                
+                const prompt = `Analyze this news/webpage content segment for:
+1. Political bias (left/center/right)
+2. Emotional tone (positive/negative/neutral)
+3. Key dates mentioned
+4. Important names/people mentioned
+5. Main topics/events
+
+Content segment ${i + 1}/${chunks.length}:
+"${chunks[i]}"
+
+Provide analysis in this format:
+BIAS: [left/center/right]
+TONE: [positive/negative/neutral]
+DATES: [list key dates]
+NAMES: [list important people/organizations]
+TOPICS: [main subjects discussed]
+SUMMARY: [brief summary of this segment]`;
+
+                try {
+                    const response = await phi3Engine.chat.completions.create({
+                        messages: [{ role: "user", content: prompt }],
+                        temperature: 0.3,
+                        max_tokens: 500
+                    });
+                    
+                    analyses.push({
+                        segment: i + 1,
+                        content: chunks[i].substring(0, 200) + '...',
+                        analysis: response.choices[0].message.content,
+                        fullContent: chunks[i]
+                    });
+                } catch (error) {
+                    console.error(`Error analyzing segment ${i + 1}:`, error);
+                    analyses.push({
+                        segment: i + 1,
+                        content: chunks[i].substring(0, 200) + '...',
+                        analysis: `Error analyzing segment: ${error.message}`,
+                        fullContent: chunks[i]
+                    });
+                }
+                
+                // Small delay to prevent overwhelming the AI
+                await new Promise(resolve => setTimeout(resolve, 100));
+            }
+            
+            // Generate overall summary
+            updateStatus('Generating overall analysis summary...', 'loading');
+            updateProgress(95);
+            
+            const summaryPrompt = `Based on the analysis of ${chunks.length} content segments, provide an overall summary:
+
+Individual segment analyses:
+${analyses.map(a => `Segment ${a.segment}: ${a.analysis}`).join('\n\n')}
+
+Provide an overall analysis in this format:
+OVERALL BIAS: [dominant political bias across all segments]
+OVERALL TONE: [dominant emotional tone]
+KEY DATES: [all important dates mentioned]
+KEY NAMES: [all important people/organizations]
+MAIN TOPICS: [primary subjects covered]
+BIAS CONSISTENCY: [whether bias is consistent across segments]
+TONE VARIATION: [how tone varies across segments]
+SUMMARY: [comprehensive summary of the entire content]`;
+
+            try {
+                const summaryResponse = await phi3Engine.chat.completions.create({
+                    messages: [{ role: "user", content: summaryPrompt }],
+                    temperature: 0.3,
+                    max_tokens: 800
+                });
+                
+                return {
+                    overallAnalysis: summaryResponse.choices[0].message.content,
+                    segmentAnalyses: analyses,
+                    totalSegments: chunks.length,
+                    title: title,
+                    url: url
+                };
+            } catch (error) {
+                console.error('Error generating summary:', error);
+                return {
+                    overallAnalysis: `Error generating overall summary: ${error.message}`,
+                    segmentAnalyses: analyses,
+                    totalSegments: chunks.length,
+                    title: title,
+                    url: url
+                };
+            }
+        }
+
+        // Display webpage analysis results
+        function displayWebpageAnalysis(analysisResult) {
+            const analysisDiv = document.getElementById('analysisResults');
+            
+            let html = `
+                <div class="analysis-container">
+                    <div class="analysis-header">
+                        <h4>📄 Webpage Analysis: ${analysisResult.title}</h4>
+                        <p><strong>URL:</strong> <a href="${analysisResult.url}" target="_blank">${analysisResult.url}</a></p>
+                        <p><strong>Analyzed in ${analysisResult.totalSegments} segments</strong></p>
+                    </div>
+                    
+                    <div class="overall-analysis">
+                        <h5>🎯 Overall Analysis</h5>
+                        <div class="analysis-content">
+                            ${analysisResult.overallAnalysis.replace(/\n/g, '<br>')}
+                        </div>
+                    </div>
+                    
+                    <div class="segment-analyses">
+                        <h5>📊 Segment-by-Segment Analysis</h5>`;
+            
+            analysisResult.segmentAnalyses.forEach(segment => {
+                html += `
+                    <div class="segment-analysis">
+                        <h6>Segment ${segment.segment}</h6>
+                        <div class="segment-content">
+                            <strong>Content Preview:</strong> ${segment.content}
+                        </div>
+                        <div class="segment-analysis-content">
+                            ${segment.analysis.replace(/\n/g, '<br>')}
+                        </div>
+                    </div>`;
+            });
+            
+            html += `
+                    </div>
+                </div>`;
+            
+            analysisDiv.innerHTML = html;
+        }
+
+        // Analyze a single webpage
+        async function analyzeWebpage() {
+            const url = document.getElementById('webpageInput').value.trim();
+            if (!url) {
+                updateStatus('Please enter a webpage URL', 'error');
+                return;
+            }
+
+            if (!isInitialized) {
+                updateStatus('AI is still initializing. Please wait...', 'error');
+                return;
+            }
+
+            const webpageBtn = document.getElementById('webpageBtnText');
+            const webpageSpinner = document.getElementById('webpageSpinner');
+            
+            webpageBtn.style.display = 'none';
+            webpageSpinner.style.display = 'inline-block';
+            
+            try {
+                updateStatus('Fetching webpage content...', 'loading');
+                updateProgress(20);
+
+                const content = await fetchFullPageContent(url);
+                if (!content) {
+                    throw new Error('Failed to fetch webpage content. The site may be blocking access or the URL may be invalid.');
+                }
+
+                // Create a single result object for display in search results
+                const webpageResult = {
+                    title: content.title || 'Webpage Analysis',
+                    snippet: content.content.substring(0, 300) + '...',
+                    url: url,
+                    source: 'Direct URL',
+                    fullContent: content.content
+                };
+
+                displaySearchResults([webpageResult]);
+                updateProgress(40);
+                // Analyze the content in chunks
+                
+                const analysisResult = await analyzeWebpageChunks(
+                    content.content, 
+                    content.title || 'Webpage Analysis', 
+                    url
+                );
+                
+                // Display the chunked analysis
+                displayWebpageAnalysis(analysisResult);
+                
+                updateProgress(100);
+                updateStatus('Webpage analysis complete!', 'success');
+                
+            } catch (error) {
+                console.error('Webpage analysis error:', error);
+                updateStatus(`Webpage analysis failed: ${error.message}`, 'error');
+            } finally {
+                webpageBtn.style.display = 'inline-block';
+                webpageSpinner.style.display = 'none';
+                updateProgress(0);
+            }
+        }
+
+        // Handle Enter key in search input
+        document.getElementById('searchInput').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                initializeAndSearch();
+            }
+        });
+
+        // Handle Enter key in webpage input
+        document.addEventListener('DOMContentLoaded', function() {
+            document.getElementById('webpageInput').addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    analyzeWebpage();
+                }
+            });
+        });
+
+        // Welcome Modal Functions
+        function showWelcomeModal() {
+            const modal = document.getElementById('welcomeModal');
+            modal.classList.add('show');
+        }
+
+        function closeWelcomeModal() {
+            const modal = document.getElementById('welcomeModal');
+            modal.classList.remove('show');
+            // Store that user has seen the modal
+            localStorage.setItem('welcomeModalSeen', 'true');
+        }
+
+        // Initial setup
+        document.addEventListener('DOMContentLoaded', function() {
+            // Show welcome modal if not seen before
+            if (!localStorage.getItem('welcomeModalSeen')) {
+                setTimeout(() => {
+                    showWelcomeModal();
+                }, 500);
+            }
+
+            updateStatus('Loading AI library and initializing Phi-3... This may take a few minutes.', 'loading');
+            
+            // Check if WebLLM is available and auto-initialize
+            setTimeout(async () => {
+                if (window.webllm) {
+                    updateStatus('AI library loaded. Initializing Phi-3 automatically...', 'loading');
+                    await initializePhi3();
+                } else {
+                    updateStatus('AI library still loading... Retrying initialization...', 'loading');
+                    // Retry after another delay
+                    setTimeout(async () => {
+                        if (window.webllm) {
+                            await initializePhi3();
+                        } else {
+                            updateStatus('Failed to load AI library. Please refresh the page.', 'error');
+                        }
+                    }, 3000);
+                }
+            }, 2000);
+        });
+    </script>
+</body>
+</html>
